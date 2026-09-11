@@ -63,12 +63,13 @@ function LeadDetailPage() {
   const { data: senderAccounts } = useSenderAccounts();
   const { data: tags } = useTags();
 
-  const [creating, setCreating] = useState(id === "new");
+  const creating = id === "new";
+  const createStartedRef = useRef(false);
 
   // Create-mode: insert a lead, then swap URL.
   useEffect(() => {
-    if (id !== "new") return;
-    let cancelled = false;
+    if (id !== "new" || createStartedRef.current) return;
+    createStartedRef.current = true;
     (async () => {
       const { data, error } = await supabase
         .from("leads")
@@ -76,17 +77,18 @@ function LeadDetailPage() {
         .select("id")
         .single();
       if (error) {
+        createStartedRef.current = false;
         toast.error(error.message ?? "Failed to create lead");
+        void navigate({ to: "/lt/leads" });
         return;
       }
-      if (!cancelled && data) {
+      if (data) {
+        qc.invalidateQueries({ queryKey: ["leads-table"] });
+        qc.invalidateQueries({ queryKey: ["leads-board"] });
         void navigate({ to: "/lt/leads/$id", params: { id: (data as { id: string }).id }, replace: true });
       }
     })();
-    return () => {
-      cancelled = true;
-    };
-  }, [id, user?.id, navigate]);
+  }, [id, user?.id, navigate, qc]);
 
   const leadQuery = useQuery({
     queryKey: ["lead_detail", id],
