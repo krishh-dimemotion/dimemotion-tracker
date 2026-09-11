@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1789167638983,
+      "tag": "0000_buzzspear_core",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789167685076,
+      "tag": "0001_buzzspear_leads_crm",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789167726887,
+      "tag": "0002_buzzspear_triggers",
+      "breakpoints": true
+    }
+  ]
+}
