@@ -1,5 +1,13 @@
 {
   "version": "7",
   "dialect": "postgresql",
-  "entries": []
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1789167638983,
+      "tag": "0000_buzzspear_core",
+      "breakpoints": true
+    }
+  ]
 }

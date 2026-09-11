@@ -14,16 +14,429 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      app_settings: {
+        Row: {
+          created_at: string
+          id: string
+          key: string
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          key: string
+          updated_at?: string
+          value?: Json
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          key?: string
+          updated_at?: string
+          value?: Json
+        }
+        Relationships: []
+      }
+      channels: {
+        Row: {
+          created_at: string
+          icon: string | null
+          id: string
+          is_active: boolean
+          kind: Database["public"]["Enums"]["channel_kind"]
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          icon?: string | null
+          id?: string
+          is_active?: boolean
+          kind?: Database["public"]["Enums"]["channel_kind"]
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          icon?: string | null
+          id?: string
+          is_active?: boolean
+          kind?: Database["public"]["Enums"]["channel_kind"]
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      countries: {
+        Row: {
+          code: string | null
+          created_at: string
+          flag_emoji: string | null
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          code?: string | null
+          created_at?: string
+          flag_emoji?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          code?: string | null
+          created_at?: string
+          flag_emoji?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      outreach_daily: {
+        Row: {
+          channel_id: string
+          created_at: string
+          day: string
+          id: string
+          manual_count: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          channel_id: string
+          created_at?: string
+          day?: string
+          id?: string
+          manual_count?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          channel_id?: string
+          created_at?: string
+          day?: string
+          id?: string
+          manual_count?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outreach_daily_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outreach_daily_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outreach_targets: {
+        Row: {
+          channel_id: string
+          created_at: string
+          daily_target: number
+          id: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          channel_id: string
+          created_at?: string
+          daily_target?: number
+          id?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          channel_id?: string
+          created_at?: string
+          daily_target?: number
+          id?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outreach_targets_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outreach_targets_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          default_lead_view: string | null
+          default_module: string | null
+          email: string | null
+          full_name: string | null
+          id: string
+          is_active: boolean
+          last_seen_at: string | null
+          role: Database["public"]["Enums"]["app_role"]
+          theme: string
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          default_lead_view?: string | null
+          default_module?: string | null
+          email?: string | null
+          full_name?: string | null
+          id: string
+          is_active?: boolean
+          last_seen_at?: string | null
+          role?: Database["public"]["Enums"]["app_role"]
+          theme?: string
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          default_lead_view?: string | null
+          default_module?: string | null
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          is_active?: boolean
+          last_seen_at?: string | null
+          role?: Database["public"]["Enums"]["app_role"]
+          theme?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      sender_accounts: {
+        Row: {
+          channel_id: string | null
+          created_at: string
+          daily_send_limit: number | null
+          id: string
+          identifier: string | null
+          label: string
+          notes: string | null
+          status: Database["public"]["Enums"]["account_status"]
+          updated_at: string
+          warmup_ready_date: string | null
+          warmup_reminder_date: string | null
+          warmup_started_at: string | null
+        }
+        Insert: {
+          channel_id?: string | null
+          created_at?: string
+          daily_send_limit?: number | null
+          id?: string
+          identifier?: string | null
+          label: string
+          notes?: string | null
+          status?: Database["public"]["Enums"]["account_status"]
+          updated_at?: string
+          warmup_ready_date?: string | null
+          warmup_reminder_date?: string | null
+          warmup_started_at?: string | null
+        }
+        Update: {
+          channel_id?: string | null
+          created_at?: string
+          daily_send_limit?: number | null
+          id?: string
+          identifier?: string | null
+          label?: string
+          notes?: string | null
+          status?: Database["public"]["Enums"]["account_status"]
+          updated_at?: string
+          warmup_ready_date?: string | null
+          warmup_reminder_date?: string | null
+          warmup_started_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sender_accounts_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shortcuts: {
+        Row: {
+          action_key: string
+          binding: string
+          created_at: string
+          id: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          action_key: string
+          binding: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          action_key?: string
+          binding?: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shortcuts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stages: {
+        Row: {
+          board: Database["public"]["Enums"]["stage_board"]
+          color: string
+          created_at: string
+          default_probability: number
+          id: string
+          is_archived: boolean
+          is_lost: boolean
+          is_reply_stage: boolean
+          is_won: boolean
+          name: string
+          order_index: number
+          updated_at: string
+        }
+        Insert: {
+          board: Database["public"]["Enums"]["stage_board"]
+          color?: string
+          created_at?: string
+          default_probability?: number
+          id?: string
+          is_archived?: boolean
+          is_lost?: boolean
+          is_reply_stage?: boolean
+          is_won?: boolean
+          name: string
+          order_index?: number
+          updated_at?: string
+        }
+        Update: {
+          board?: Database["public"]["Enums"]["stage_board"]
+          color?: string
+          created_at?: string
+          default_probability?: number
+          id?: string
+          is_archived?: boolean
+          is_lost?: boolean
+          is_reply_stage?: boolean
+          is_won?: boolean
+          name?: string
+          order_index?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tags: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_permissions: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          id: string
+          permission_key: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          permission_key: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          permission_key?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_permissions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      can: { Args: { _key: string }; Returns: boolean }
+      is_active_user: { Args: never; Returns: boolean }
+      is_admin: { Args: never; Returns: boolean }
+      is_owner: { Args: never; Returns: boolean }
     }
     Enums: {
-      [_ in never]: never
+      account_status: "active" | "warming" | "paused"
+      app_role: "owner" | "admin" | "member"
+      channel_kind: "email" | "linkedin" | "instagram" | "other"
+      stage_board: "lead" | "crm"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +563,11 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      account_status: ["active", "warming", "paused"],
+      app_role: ["owner", "admin", "member"],
+      channel_kind: ["email", "linkedin", "instagram", "other"],
+      stage_board: ["lead", "crm"],
+    },
   },
 } as const
