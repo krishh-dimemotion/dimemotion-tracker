@@ -13,6 +13,13 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ModulesRouteImport } from './routes/modules'
 import { Route as PendingRouteImport } from './routes/pending'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as CrmFollowupsRouteImport } from './routes/crm.followups'
+import { Route as CrmPipelineRouteImport } from './routes/crm.pipeline'
+import { Route as CrmRecordsRouteImport } from './routes/crm.records'
+import { Route as LtDashboardRouteImport } from './routes/lt.dashboard'
+import { Route as LtLeadsRouteImport } from './routes/lt.leads'
+import { Route as CrmRecordsIdRouteImport } from './routes/crm.records.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -34,18 +41,67 @@ const PendingRoute = PendingRouteImport.update({
   path: '/pending',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CrmFollowupsRoute = CrmFollowupsRouteImport.update({
+  id: '/crm/followups',
+  path: '/crm/followups',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CrmPipelineRoute = CrmPipelineRouteImport.update({
+  id: '/crm/pipeline',
+  path: '/crm/pipeline',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CrmRecordsRoute = CrmRecordsRouteImport.update({
+  id: '/crm/records',
+  path: '/crm/records',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LtDashboardRoute = LtDashboardRouteImport.update({
+  id: '/lt/dashboard',
+  path: '/lt/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LtLeadsRoute = LtLeadsRouteImport.update({
+  id: '/lt/leads',
+  path: '/lt/leads',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CrmRecordsIdRoute = CrmRecordsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => CrmRecordsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/modules': typeof ModulesRoute
   '/pending': typeof PendingRoute
+  '/settings': typeof SettingsRoute
+  '/crm/followups': typeof CrmFollowupsRoute
+  '/crm/pipeline': typeof CrmPipelineRoute
+  '/crm/records': typeof CrmRecordsRouteWithChildren
+  '/lt/dashboard': typeof LtDashboardRoute
+  '/lt/leads': typeof LtLeadsRoute
+  '/crm/records/$id': typeof CrmRecordsIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/modules': typeof ModulesRoute
   '/pending': typeof PendingRoute
+  '/settings': typeof SettingsRoute
+  '/crm/followups': typeof CrmFollowupsRoute
+  '/crm/pipeline': typeof CrmPipelineRoute
+  '/crm/records': typeof CrmRecordsRouteWithChildren
+  '/lt/dashboard': typeof LtDashboardRoute
+  '/lt/leads': typeof LtLeadsRoute
+  '/crm/records/$id': typeof CrmRecordsIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -53,13 +109,54 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/modules': typeof ModulesRoute
   '/pending': typeof PendingRoute
+  '/settings': typeof SettingsRoute
+  '/crm/followups': typeof CrmFollowupsRoute
+  '/crm/pipeline': typeof CrmPipelineRoute
+  '/crm/records': typeof CrmRecordsRouteWithChildren
+  '/lt/dashboard': typeof LtDashboardRoute
+  '/lt/leads': typeof LtLeadsRoute
+  '/crm/records/$id': typeof CrmRecordsIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/modules' | '/pending'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/modules'
+    | '/pending'
+    | '/settings'
+    | '/crm/followups'
+    | '/crm/pipeline'
+    | '/crm/records'
+    | '/lt/dashboard'
+    | '/lt/leads'
+    | '/crm/records/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/modules' | '/pending'
-  id: '__root__' | '/' | '/auth' | '/modules' | '/pending'
+  to:
+    | '/'
+    | '/auth'
+    | '/modules'
+    | '/pending'
+    | '/settings'
+    | '/crm/followups'
+    | '/crm/pipeline'
+    | '/crm/records'
+    | '/lt/dashboard'
+    | '/lt/leads'
+    | '/crm/records/$id'
+  id:
+    | '__root__'
+    | '/'
+    | '/auth'
+    | '/modules'
+    | '/pending'
+    | '/settings'
+    | '/crm/followups'
+    | '/crm/pipeline'
+    | '/crm/records'
+    | '/lt/dashboard'
+    | '/lt/leads'
+    | '/crm/records/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -67,6 +164,12 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   ModulesRoute: typeof ModulesRoute
   PendingRoute: typeof PendingRoute
+  SettingsRoute: typeof SettingsRoute
+  CrmFollowupsRoute: typeof CrmFollowupsRoute
+  CrmPipelineRoute: typeof CrmPipelineRoute
+  CrmRecordsRoute: typeof CrmRecordsRouteWithChildren
+  LtDashboardRoute: typeof LtDashboardRoute
+  LtLeadsRoute: typeof LtLeadsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -99,14 +202,81 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PendingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/crm/followups': {
+      id: '/crm/followups'
+      path: '/crm/followups'
+      fullPath: '/crm/followups'
+      preLoaderRoute: typeof CrmFollowupsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/crm/pipeline': {
+      id: '/crm/pipeline'
+      path: '/crm/pipeline'
+      fullPath: '/crm/pipeline'
+      preLoaderRoute: typeof CrmPipelineRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/crm/records': {
+      id: '/crm/records'
+      path: '/crm/records'
+      fullPath: '/crm/records'
+      preLoaderRoute: typeof CrmRecordsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lt/dashboard': {
+      id: '/lt/dashboard'
+      path: '/lt/dashboard'
+      fullPath: '/lt/dashboard'
+      preLoaderRoute: typeof LtDashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lt/leads': {
+      id: '/lt/leads'
+      path: '/lt/leads'
+      fullPath: '/lt/leads'
+      preLoaderRoute: typeof LtLeadsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/crm/records/$id': {
+      id: '/crm/records/$id'
+      path: '/$id'
+      fullPath: '/crm/records/$id'
+      preLoaderRoute: typeof CrmRecordsIdRouteImport
+      parentRoute: typeof CrmRecordsRoute
+    }
   }
 }
+
+interface CrmRecordsRouteChildren {
+  CrmRecordsIdRoute: typeof CrmRecordsIdRoute
+}
+
+const CrmRecordsRouteChildren: CrmRecordsRouteChildren = {
+  CrmRecordsIdRoute: CrmRecordsIdRoute,
+}
+
+const CrmRecordsRouteWithChildren = CrmRecordsRoute._addFileChildren(
+  CrmRecordsRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRoute,
   ModulesRoute: ModulesRoute,
   PendingRoute: PendingRoute,
+  SettingsRoute: SettingsRoute,
+  CrmFollowupsRoute: CrmFollowupsRoute,
+  CrmPipelineRoute: CrmPipelineRoute,
+  CrmRecordsRoute: CrmRecordsRouteWithChildren,
+  LtDashboardRoute: LtDashboardRoute,
+  LtLeadsRoute: LtLeadsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
