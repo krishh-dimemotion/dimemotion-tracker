@@ -1004,6 +1004,7 @@ export type Database = {
     }
     Functions: {
       can: { Args: { _key: string }; Returns: boolean }
+      ensure_crm_record: { Args: { _lead_id: string }; Returns: string }
       is_active_user: { Args: never; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
       is_owner: { Args: never; Returns: boolean }

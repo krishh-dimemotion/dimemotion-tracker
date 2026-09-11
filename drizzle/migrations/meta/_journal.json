@@ -15,6 +15,13 @@
       "when": 1789167685076,
       "tag": "0001_buzzspear_leads_crm",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789167726887,
+      "tag": "0002_buzzspear_triggers",
+      "breakpoints": true
     }
   ]
 }
