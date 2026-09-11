@@ -98,6 +98,582 @@ export type Database = {
         }
         Relationships: []
       }
+      crm_contact_log: {
+        Row: {
+          channel_id: string | null
+          contacted_at: string
+          created_at: string
+          created_by: string | null
+          crm_record_id: string
+          direction: string
+          id: string
+          summary: string | null
+          updated_at: string
+        }
+        Insert: {
+          channel_id?: string | null
+          contacted_at?: string
+          created_at?: string
+          created_by?: string | null
+          crm_record_id: string
+          direction?: string
+          id?: string
+          summary?: string | null
+          updated_at?: string
+        }
+        Update: {
+          channel_id?: string | null
+          contacted_at?: string
+          created_at?: string
+          created_by?: string | null
+          crm_record_id?: string
+          direction?: string
+          id?: string
+          summary?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_contact_log_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_contact_log_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_contact_log_crm_record_id_fkey"
+            columns: ["crm_record_id"]
+            isOneToOne: false
+            referencedRelation: "crm_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_records: {
+        Row: {
+          closed_at: string | null
+          contract_months: number | null
+          created_at: string
+          currency: string
+          deal_type: string
+          estimated_value: number | null
+          expected_close_date: string | null
+          id: string
+          last_contacted_at: string | null
+          lead_id: string
+          mrr_amount: number | null
+          next_followup_date: string | null
+          notes: string | null
+          owner_id: string | null
+          priority: string
+          probability: number | null
+          stage_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          closed_at?: string | null
+          contract_months?: number | null
+          created_at?: string
+          currency?: string
+          deal_type?: string
+          estimated_value?: number | null
+          expected_close_date?: string | null
+          id?: string
+          last_contacted_at?: string | null
+          lead_id: string
+          mrr_amount?: number | null
+          next_followup_date?: string | null
+          notes?: string | null
+          owner_id?: string | null
+          priority?: string
+          probability?: number | null
+          stage_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          closed_at?: string | null
+          contract_months?: number | null
+          created_at?: string
+          currency?: string
+          deal_type?: string
+          estimated_value?: number | null
+          expected_close_date?: string | null
+          id?: string
+          last_contacted_at?: string | null
+          lead_id?: string
+          mrr_amount?: number | null
+          next_followup_date?: string | null
+          notes?: string | null
+          owner_id?: string | null
+          priority?: string
+          probability?: number | null
+          stage_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_records_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: true
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_records_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_records_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_contacts: {
+        Row: {
+          created_at: string
+          email: string | null
+          emails: Json
+          id: string
+          instagram_url: string | null
+          is_primary: boolean
+          job_title: string | null
+          lead_id: string
+          linkedin_url: string | null
+          order_index: number
+          person_name: string | null
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          emails?: Json
+          id?: string
+          instagram_url?: string | null
+          is_primary?: boolean
+          job_title?: string | null
+          lead_id: string
+          linkedin_url?: string | null
+          order_index?: number
+          person_name?: string | null
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          emails?: Json
+          id?: string
+          instagram_url?: string | null
+          is_primary?: boolean
+          job_title?: string | null
+          lead_id?: string
+          linkedin_url?: string | null
+          order_index?: number
+          person_name?: string | null
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_contacts_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_events: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          event_type: string
+          id: string
+          lead_id: string | null
+          meta: Json
+          occurred_at: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          event_type: string
+          id?: string
+          lead_id?: string | null
+          meta?: Json
+          occurred_at?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          event_type?: string
+          id?: string
+          lead_id?: string | null
+          meta?: Json
+          occurred_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_events_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_events_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_followups: {
+        Row: {
+          channel_id: string | null
+          created_at: string
+          id: string
+          lead_id: string
+          notes: string | null
+          scheduled_date: string | null
+          sent_at: string | null
+          sequence_number: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          channel_id?: string | null
+          created_at?: string
+          id?: string
+          lead_id: string
+          notes?: string | null
+          scheduled_date?: string | null
+          sent_at?: string | null
+          sequence_number?: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          channel_id?: string | null
+          created_at?: string
+          id?: string
+          lead_id?: string
+          notes?: string | null
+          scheduled_date?: string | null
+          sent_at?: string | null
+          sequence_number?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_followups_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_followups_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_links: {
+        Row: {
+          created_at: string
+          id: string
+          label: string | null
+          lead_id: string
+          order_index: number
+          updated_at: string
+          url: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label?: string | null
+          lead_id: string
+          order_index?: number
+          updated_at?: string
+          url?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string | null
+          lead_id?: string
+          order_index?: number
+          updated_at?: string
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_links_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_tags: {
+        Row: {
+          created_at: string
+          id: string
+          lead_id: string
+          tag_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lead_id: string
+          tag_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lead_id?: string
+          tag_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_tags_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_tags_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leads: {
+        Row: {
+          additional_notes: string | null
+          archived: boolean
+          archived_at: string | null
+          channel_id: string | null
+          client_closed: boolean
+          client_closed_at: string | null
+          company_linkedin_url: string | null
+          company_name: string
+          country_id: string | null
+          created_at: string
+          created_by: string | null
+          date_added: string
+          email_replied: boolean
+          email_replied_at: string | null
+          email_sent: boolean
+          email_sent_at: string | null
+          email_viewed: boolean
+          email_viewed_at: string | null
+          id: string
+          instagram_replied: boolean
+          instagram_replied_at: string | null
+          instagram_sent: boolean
+          instagram_sent_at: string | null
+          instagram_url: string | null
+          last_contacted_at: string | null
+          lead_code: string
+          linkedin_replied: boolean
+          linkedin_replied_at: string | null
+          linkedin_sent: boolean
+          linkedin_sent_at: string | null
+          loom_sent: boolean
+          loom_sent_at: string | null
+          loom_url: string | null
+          loom_watch_percent: number | null
+          loom_watched: boolean
+          loom_watched_at: string | null
+          meeting_booked: boolean
+          meeting_booked_at: string | null
+          next_followup_date: string | null
+          primary_contact: string | null
+          priority: string | null
+          pushed_to_crm: boolean
+          pushed_to_crm_at: string | null
+          reply_sentiment: string | null
+          research_notes: string | null
+          sender_account_id: string | null
+          stage_id: string | null
+          status: string
+          updated_at: string
+          website_url: string | null
+          youtube_url: string | null
+        }
+        Insert: {
+          additional_notes?: string | null
+          archived?: boolean
+          archived_at?: string | null
+          channel_id?: string | null
+          client_closed?: boolean
+          client_closed_at?: string | null
+          company_linkedin_url?: string | null
+          company_name: string
+          country_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          date_added?: string
+          email_replied?: boolean
+          email_replied_at?: string | null
+          email_sent?: boolean
+          email_sent_at?: string | null
+          email_viewed?: boolean
+          email_viewed_at?: string | null
+          id?: string
+          instagram_replied?: boolean
+          instagram_replied_at?: string | null
+          instagram_sent?: boolean
+          instagram_sent_at?: string | null
+          instagram_url?: string | null
+          last_contacted_at?: string | null
+          lead_code?: string
+          linkedin_replied?: boolean
+          linkedin_replied_at?: string | null
+          linkedin_sent?: boolean
+          linkedin_sent_at?: string | null
+          loom_sent?: boolean
+          loom_sent_at?: string | null
+          loom_url?: string | null
+          loom_watch_percent?: number | null
+          loom_watched?: boolean
+          loom_watched_at?: string | null
+          meeting_booked?: boolean
+          meeting_booked_at?: string | null
+          next_followup_date?: string | null
+          primary_contact?: string | null
+          priority?: string | null
+          pushed_to_crm?: boolean
+          pushed_to_crm_at?: string | null
+          reply_sentiment?: string | null
+          research_notes?: string | null
+          sender_account_id?: string | null
+          stage_id?: string | null
+          status?: string
+          updated_at?: string
+          website_url?: string | null
+          youtube_url?: string | null
+        }
+        Update: {
+          additional_notes?: string | null
+          archived?: boolean
+          archived_at?: string | null
+          channel_id?: string | null
+          client_closed?: boolean
+          client_closed_at?: string | null
+          company_linkedin_url?: string | null
+          company_name?: string
+          country_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          date_added?: string
+          email_replied?: boolean
+          email_replied_at?: string | null
+          email_sent?: boolean
+          email_sent_at?: string | null
+          email_viewed?: boolean
+          email_viewed_at?: string | null
+          id?: string
+          instagram_replied?: boolean
+          instagram_replied_at?: string | null
+          instagram_sent?: boolean
+          instagram_sent_at?: string | null
+          instagram_url?: string | null
+          last_contacted_at?: string | null
+          lead_code?: string
+          linkedin_replied?: boolean
+          linkedin_replied_at?: string | null
+          linkedin_sent?: boolean
+          linkedin_sent_at?: string | null
+          loom_sent?: boolean
+          loom_sent_at?: string | null
+          loom_url?: string | null
+          loom_watch_percent?: number | null
+          loom_watched?: boolean
+          loom_watched_at?: string | null
+          meeting_booked?: boolean
+          meeting_booked_at?: string | null
+          next_followup_date?: string | null
+          primary_contact?: string | null
+          priority?: string | null
+          pushed_to_crm?: boolean
+          pushed_to_crm_at?: string | null
+          reply_sentiment?: string | null
+          research_notes?: string | null
+          sender_account_id?: string | null
+          stage_id?: string | null
+          status?: string
+          updated_at?: string
+          website_url?: string | null
+          youtube_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leads_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_country_id_fkey"
+            columns: ["country_id"]
+            isOneToOne: false
+            referencedRelation: "countries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_sender_account_id_fkey"
+            columns: ["sender_account_id"]
+            isOneToOne: false
+            referencedRelation: "sender_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       outreach_daily: {
         Row: {
           channel_id: string
@@ -431,6 +1007,21 @@ export type Database = {
       is_active_user: { Args: never; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
       is_owner: { Args: never; Returns: boolean }
+      next_lead_code: { Args: never; Returns: string }
+      revenue_summary: {
+        Args: never
+        Returns: {
+          avg_deal_size: number
+          current_mrr: number
+          lost_count: number
+          lost_value: number
+          open_retainer_mrr: number
+          pipeline_value: number
+          weighted_pipeline: number
+          won_count: number
+          won_this_month: number
+        }[]
+      }
     }
     Enums: {
       account_status: "active" | "warming" | "paused"
