@@ -56,6 +56,7 @@ export function ImportWizard() {
     const rows = parseCsv(text);
     if (rows.length === 0) return;
     const [head, ...rest] = rows;
+    if (!head) return;
     setHeaders(head);
     setDataRows(rest);
     setFileName(file.name);
@@ -84,7 +85,7 @@ export function ImportWizard() {
 
   const dupMap: DupInfo[] = useMemo(() => {
     if (!existingLeads) return mappedRows.map(() => ({ isDuplicate: false }));
-    return mappedRows.map((r) => {
+    return mappedRows.map((r): DupInfo => {
       const name = r.company_name ? normalizeName(r.company_name) : "";
       if (!name) return { isDuplicate: false };
       const email = (r.person_1_email || "").trim().toLowerCase();
