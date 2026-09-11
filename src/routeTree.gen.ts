@@ -16,15 +16,15 @@ import { Route as PendingRouteImport } from './routes/pending'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as CrmFollowupsRouteImport } from './routes/crm.followups'
 import { Route as CrmPipelineRouteImport } from './routes/crm.pipeline'
-import { Route as CrmRecordsRouteImport } from './routes/crm.records'
 import { Route as CrmRevenueRouteImport } from './routes/crm.revenue'
 import { Route as LtArchiveRouteImport } from './routes/lt.archive'
 import { Route as LtDashboardRouteImport } from './routes/lt.dashboard'
 import { Route as LtDataRouteImport } from './routes/lt.data'
-import { Route as LtLeadsRouteImport } from './routes/lt.leads'
 import { Route as LtLedgerRouteImport } from './routes/lt.ledger'
 import { Route as LtOutreachRouteImport } from './routes/lt.outreach'
+import { Route as CrmRecordsIndexRouteImport } from './routes/crm.records.index'
 import { Route as CrmRecordsIdRouteImport } from './routes/crm.records.$id'
+import { Route as LtLeadsIndexRouteImport } from './routes/lt.leads.index'
 import { Route as LtLeadsIdRouteImport } from './routes/lt.leads.$id'
 
 const IndexRoute = IndexRouteImport.update({
@@ -62,11 +62,6 @@ const CrmPipelineRoute = CrmPipelineRouteImport.update({
   path: '/crm/pipeline',
   getParentRoute: () => rootRouteImport,
 } as any)
-const CrmRecordsRoute = CrmRecordsRouteImport.update({
-  id: '/crm/records',
-  path: '/crm/records',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const CrmRevenueRoute = CrmRevenueRouteImport.update({
   id: '/crm/revenue',
   path: '/crm/revenue',
@@ -87,11 +82,6 @@ const LtDataRoute = LtDataRouteImport.update({
   path: '/lt/data',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LtLeadsRoute = LtLeadsRouteImport.update({
-  id: '/lt/leads',
-  path: '/lt/leads',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const LtLedgerRoute = LtLedgerRouteImport.update({
   id: '/lt/ledger',
   path: '/lt/ledger',
@@ -102,15 +92,25 @@ const LtOutreachRoute = LtOutreachRouteImport.update({
   path: '/lt/outreach',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CrmRecordsIndexRoute = CrmRecordsIndexRouteImport.update({
+  id: '/crm/records/',
+  path: '/crm/records/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CrmRecordsIdRoute = CrmRecordsIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => CrmRecordsRoute,
+  id: '/crm/records/$id',
+  path: '/crm/records/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LtLeadsIndexRoute = LtLeadsIndexRouteImport.update({
+  id: '/lt/leads/',
+  path: '/lt/leads/',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const LtLeadsIdRoute = LtLeadsIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => LtLeadsRoute,
+  id: '/lt/leads/$id',
+  path: '/lt/leads/$id',
+  getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -121,16 +121,16 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/crm/followups': typeof CrmFollowupsRoute
   '/crm/pipeline': typeof CrmPipelineRoute
-  '/crm/records': typeof CrmRecordsRouteWithChildren
   '/crm/revenue': typeof CrmRevenueRoute
   '/lt/archive': typeof LtArchiveRoute
   '/lt/dashboard': typeof LtDashboardRoute
   '/lt/data': typeof LtDataRoute
-  '/lt/leads': typeof LtLeadsRouteWithChildren
   '/lt/ledger': typeof LtLedgerRoute
   '/lt/outreach': typeof LtOutreachRoute
   '/crm/records/$id': typeof CrmRecordsIdRoute
   '/lt/leads/$id': typeof LtLeadsIdRoute
+  '/crm/records/': typeof CrmRecordsIndexRoute
+  '/lt/leads/': typeof LtLeadsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -140,16 +140,16 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/crm/followups': typeof CrmFollowupsRoute
   '/crm/pipeline': typeof CrmPipelineRoute
-  '/crm/records': typeof CrmRecordsRouteWithChildren
   '/crm/revenue': typeof CrmRevenueRoute
   '/lt/archive': typeof LtArchiveRoute
   '/lt/dashboard': typeof LtDashboardRoute
   '/lt/data': typeof LtDataRoute
-  '/lt/leads': typeof LtLeadsRouteWithChildren
   '/lt/ledger': typeof LtLedgerRoute
   '/lt/outreach': typeof LtOutreachRoute
   '/crm/records/$id': typeof CrmRecordsIdRoute
   '/lt/leads/$id': typeof LtLeadsIdRoute
+  '/crm/records': typeof CrmRecordsIndexRoute
+  '/lt/leads': typeof LtLeadsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -160,16 +160,16 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/crm/followups': typeof CrmFollowupsRoute
   '/crm/pipeline': typeof CrmPipelineRoute
-  '/crm/records': typeof CrmRecordsRouteWithChildren
   '/crm/revenue': typeof CrmRevenueRoute
   '/lt/archive': typeof LtArchiveRoute
   '/lt/dashboard': typeof LtDashboardRoute
   '/lt/data': typeof LtDataRoute
-  '/lt/leads': typeof LtLeadsRouteWithChildren
   '/lt/ledger': typeof LtLedgerRoute
   '/lt/outreach': typeof LtOutreachRoute
   '/crm/records/$id': typeof CrmRecordsIdRoute
   '/lt/leads/$id': typeof LtLeadsIdRoute
+  '/crm/records/': typeof CrmRecordsIndexRoute
+  '/lt/leads/': typeof LtLeadsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -181,16 +181,16 @@ export interface FileRouteTypes {
     | '/settings'
     | '/crm/followups'
     | '/crm/pipeline'
-    | '/crm/records'
     | '/crm/revenue'
     | '/lt/archive'
     | '/lt/dashboard'
     | '/lt/data'
-    | '/lt/leads'
     | '/lt/ledger'
     | '/lt/outreach'
     | '/crm/records/$id'
     | '/lt/leads/$id'
+    | '/crm/records/'
+    | '/lt/leads/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -200,16 +200,16 @@ export interface FileRouteTypes {
     | '/settings'
     | '/crm/followups'
     | '/crm/pipeline'
-    | '/crm/records'
     | '/crm/revenue'
     | '/lt/archive'
     | '/lt/dashboard'
     | '/lt/data'
-    | '/lt/leads'
     | '/lt/ledger'
     | '/lt/outreach'
     | '/crm/records/$id'
     | '/lt/leads/$id'
+    | '/crm/records'
+    | '/lt/leads'
   id:
     | '__root__'
     | '/'
@@ -219,16 +219,16 @@ export interface FileRouteTypes {
     | '/settings'
     | '/crm/followups'
     | '/crm/pipeline'
-    | '/crm/records'
     | '/crm/revenue'
     | '/lt/archive'
     | '/lt/dashboard'
     | '/lt/data'
-    | '/lt/leads'
     | '/lt/ledger'
     | '/lt/outreach'
     | '/crm/records/$id'
     | '/lt/leads/$id'
+    | '/crm/records/'
+    | '/lt/leads/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -239,14 +239,16 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   CrmFollowupsRoute: typeof CrmFollowupsRoute
   CrmPipelineRoute: typeof CrmPipelineRoute
-  CrmRecordsRoute: typeof CrmRecordsRouteWithChildren
   CrmRevenueRoute: typeof CrmRevenueRoute
   LtArchiveRoute: typeof LtArchiveRoute
   LtDashboardRoute: typeof LtDashboardRoute
   LtDataRoute: typeof LtDataRoute
-  LtLeadsRoute: typeof LtLeadsRouteWithChildren
   LtLedgerRoute: typeof LtLedgerRoute
   LtOutreachRoute: typeof LtOutreachRoute
+  CrmRecordsIdRoute: typeof CrmRecordsIdRoute
+  LtLeadsIdRoute: typeof LtLeadsIdRoute
+  CrmRecordsIndexRoute: typeof CrmRecordsIndexRoute
+  LtLeadsIndexRoute: typeof LtLeadsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -300,13 +302,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CrmPipelineRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/crm/records': {
-      id: '/crm/records'
-      path: '/crm/records'
-      fullPath: '/crm/records'
-      preLoaderRoute: typeof CrmRecordsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/crm/revenue': {
       id: '/crm/revenue'
       path: '/crm/revenue'
@@ -335,13 +330,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LtDataRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/lt/leads': {
-      id: '/lt/leads'
-      path: '/lt/leads'
-      fullPath: '/lt/leads'
-      preLoaderRoute: typeof LtLeadsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/lt/ledger': {
       id: '/lt/ledger'
       path: '/lt/ledger'
@@ -356,45 +344,36 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LtOutreachRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/crm/records/': {
+      id: '/crm/records/'
+      path: '/crm/records'
+      fullPath: '/crm/records/'
+      preLoaderRoute: typeof CrmRecordsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/crm/records/$id': {
       id: '/crm/records/$id'
-      path: '/$id'
+      path: '/crm/records/$id'
       fullPath: '/crm/records/$id'
       preLoaderRoute: typeof CrmRecordsIdRouteImport
-      parentRoute: typeof CrmRecordsRoute
+      parentRoute: typeof rootRouteImport
+    }
+    '/lt/leads/': {
+      id: '/lt/leads/'
+      path: '/lt/leads'
+      fullPath: '/lt/leads/'
+      preLoaderRoute: typeof LtLeadsIndexRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/lt/leads/$id': {
       id: '/lt/leads/$id'
-      path: '/$id'
+      path: '/lt/leads/$id'
       fullPath: '/lt/leads/$id'
       preLoaderRoute: typeof LtLeadsIdRouteImport
-      parentRoute: typeof LtLeadsRoute
+      parentRoute: typeof rootRouteImport
     }
   }
 }
-
-interface CrmRecordsRouteChildren {
-  CrmRecordsIdRoute: typeof CrmRecordsIdRoute
-}
-
-const CrmRecordsRouteChildren: CrmRecordsRouteChildren = {
-  CrmRecordsIdRoute: CrmRecordsIdRoute,
-}
-
-const CrmRecordsRouteWithChildren = CrmRecordsRoute._addFileChildren(
-  CrmRecordsRouteChildren,
-)
-
-interface LtLeadsRouteChildren {
-  LtLeadsIdRoute: typeof LtLeadsIdRoute
-}
-
-const LtLeadsRouteChildren: LtLeadsRouteChildren = {
-  LtLeadsIdRoute: LtLeadsIdRoute,
-}
-
-const LtLeadsRouteWithChildren =
-  LtLeadsRoute._addFileChildren(LtLeadsRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -404,14 +383,16 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   CrmFollowupsRoute: CrmFollowupsRoute,
   CrmPipelineRoute: CrmPipelineRoute,
-  CrmRecordsRoute: CrmRecordsRouteWithChildren,
   CrmRevenueRoute: CrmRevenueRoute,
   LtArchiveRoute: LtArchiveRoute,
   LtDashboardRoute: LtDashboardRoute,
   LtDataRoute: LtDataRoute,
-  LtLeadsRoute: LtLeadsRouteWithChildren,
   LtLedgerRoute: LtLedgerRoute,
   LtOutreachRoute: LtOutreachRoute,
+  CrmRecordsIdRoute: CrmRecordsIdRoute,
+  LtLeadsIdRoute: LtLeadsIdRoute,
+  CrmRecordsIndexRoute: CrmRecordsIndexRoute,
+  LtLeadsIndexRoute: LtLeadsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

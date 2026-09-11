@@ -19,7 +19,7 @@ import { money, fmtDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { PRIORITY_COLORS, PRIORITY_LABELS, DEAL_TYPE_LABELS, type CrmRecordRow } from "@/components/crm/helpers";
 
-export const Route = createFileRoute("/crm/records")({
+export const Route = createFileRoute("/crm/records/")({
   head: () => ({
     meta: [
       { title: "Records — CRM — Buzzspear Tracker" },
