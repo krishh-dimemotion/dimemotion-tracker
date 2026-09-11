@@ -93,7 +93,7 @@ function RecordDetailPage() {
   const updateRecord = useMutation({
     mutationFn: async (patch: Record<string, any>) => {
       setSaved("saving");
-      const { error } = await supabase.from("crm_records").update(patch).eq("id", id);
+      const { error } = await supabase.from("crm_records").update(patch as never).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -321,7 +321,7 @@ function ContactsCard({
 
   const updateContact = useMutation({
     mutationFn: async ({ contactId, patch }: { contactId: string; patch: Record<string, any> }) => {
-      const { error } = await supabase.from("lead_contacts").update(patch).eq("id", contactId);
+      const { error } = await supabase.from("lead_contacts").update(patch as never).eq("id", contactId);
       if (error) throw error;
     },
     onSuccess: () => {
