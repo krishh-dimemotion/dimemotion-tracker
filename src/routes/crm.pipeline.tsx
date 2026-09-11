@@ -53,7 +53,7 @@ function PipelinePage() {
 
   const moveMutation = useMutation({
     mutationFn: async ({ recordId, patch }: { recordId: string; patch: Record<string, any> }) => {
-      const { error } = await supabase.from("crm_records").update(patch).eq("id", recordId);
+      const { error } = await supabase.from("crm_records").update(patch as never).eq("id", recordId);
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["crm_pipeline_records"] }),

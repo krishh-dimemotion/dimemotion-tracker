@@ -296,7 +296,7 @@ export function AppPage({
       }
       if (e.key.toLowerCase() === "n" && pathname.startsWith("/lt")) {
         e.preventDefault();
-        void navigate({ to: "/lt/leads/new" });
+        void navigate({ to: "/lt/leads/$id", params: { id: "new" } });
       }
       if (e.key === "/") {
         e.preventDefault();

@@ -5,7 +5,7 @@ export type LeadContact = Tables<"lead_contacts">;
 export type LeadLink = Tables<"lead_links">;
 export type LeadFollowup = Tables<"lead_followups">;
 export type LeadEvent = Tables<"lead_events">;
-export type Stage = Tables<"stages">;
+export type { Stage } from "@/hooks/useLookups";
 export type Channel = Tables<"channels">;
 export type SenderAccount = Tables<"sender_accounts">;
 export type Country = Tables<"countries">;
