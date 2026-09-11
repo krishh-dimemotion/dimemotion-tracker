@@ -130,14 +130,14 @@ export function ImportWizard() {
       };
 
       for (let i = 0; i < mappedRows.length; i++) {
-        const r = mappedRows[i];
+        const r = mappedRows[i]!;
         const rowNum = i + 2;
         try {
           if (!r.company_name) {
             out.push({ row: rowNum, status: "failed", error: "Missing company_name" });
             continue;
           }
-          const dup = dupMap[i];
+          const dup = dupMap[i]!;
           if (dup.isDuplicate && dupAction === "skip") {
             out.push({ row: rowNum, status: "skipped" });
             continue;

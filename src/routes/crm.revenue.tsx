@@ -191,8 +191,8 @@ function RevenuePage() {
             <Metric
               label="Win rate"
               value={winRateHasData ? `${winRate}%` : "0%"}
-              helper={winRateHasData ? undefined : "No data yet"}
-              tone={winRateHasData ? "positive" : undefined}
+              helper={winRateHasData ? "" : "No data yet"}
+              {...(winRateHasData ? { tone: "positive" as const } : {})}
             />
           </div>
         )}
@@ -268,7 +268,7 @@ function RevenuePage() {
                   {pipelineByStage.map((row) => (
                     <tr key={row.stageId} className="border-b border-border">
                       <td className="px-2 py-1.5">
-                        <Pill color={row.stage?.color}>{row.stage?.name ?? "No stage"}</Pill>
+                        <Pill color={row.stage?.color ?? null}>{row.stage?.name ?? "No stage"}</Pill>
                       </td>
                       <td className="px-2 py-1.5">{row.count}</td>
                       <td className="px-2 py-1.5">{money(row.totalValue)}</td>
