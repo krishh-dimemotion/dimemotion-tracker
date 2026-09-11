@@ -17,7 +17,7 @@ import type { GroupByKey } from "@/components/leads/groups";
 import type { Lead } from "@/components/leads/types";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/lt/leads")({
+export const Route = createFileRoute("/lt/leads/")({
   head: () => ({
     meta: [
       { title: "Leads | Lead Tracker" },
