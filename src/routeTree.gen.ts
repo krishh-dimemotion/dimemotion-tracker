@@ -98,9 +98,9 @@ const CrmRecordsIndexRoute = CrmRecordsIndexRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const CrmRecordsIdRoute = CrmRecordsIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => CrmRecordsRoute,
+  id: '/crm/records/$id',
+  path: '/crm/records/$id',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const LtLeadsIndexRoute = LtLeadsIndexRouteImport.update({
   id: '/lt/leads/',
@@ -108,9 +108,9 @@ const LtLeadsIndexRoute = LtLeadsIndexRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const LtLeadsIdRoute = LtLeadsIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => LtLeadsRoute,
+  id: '/lt/leads/$id',
+  path: '/lt/leads/$id',
+  getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -245,6 +245,8 @@ export interface RootRouteChildren {
   LtDataRoute: typeof LtDataRoute
   LtLedgerRoute: typeof LtLedgerRoute
   LtOutreachRoute: typeof LtOutreachRoute
+  CrmRecordsIdRoute: typeof CrmRecordsIdRoute
+  LtLeadsIdRoute: typeof LtLeadsIdRoute
   CrmRecordsIndexRoute: typeof CrmRecordsIndexRoute
   LtLeadsIndexRoute: typeof LtLeadsIndexRoute
 }
@@ -351,10 +353,10 @@ declare module '@tanstack/react-router' {
     }
     '/crm/records/$id': {
       id: '/crm/records/$id'
-      path: '/$id'
+      path: '/crm/records/$id'
       fullPath: '/crm/records/$id'
       preLoaderRoute: typeof CrmRecordsIdRouteImport
-      parentRoute: typeof CrmRecordsRoute
+      parentRoute: typeof rootRouteImport
     }
     '/lt/leads/': {
       id: '/lt/leads/'
@@ -365,10 +367,10 @@ declare module '@tanstack/react-router' {
     }
     '/lt/leads/$id': {
       id: '/lt/leads/$id'
-      path: '/$id'
+      path: '/lt/leads/$id'
       fullPath: '/lt/leads/$id'
       preLoaderRoute: typeof LtLeadsIdRouteImport
-      parentRoute: typeof LtLeadsRoute
+      parentRoute: typeof rootRouteImport
     }
   }
 }
@@ -387,6 +389,8 @@ const rootRouteChildren: RootRouteChildren = {
   LtDataRoute: LtDataRoute,
   LtLedgerRoute: LtLedgerRoute,
   LtOutreachRoute: LtOutreachRoute,
+  CrmRecordsIdRoute: CrmRecordsIdRoute,
+  LtLeadsIdRoute: LtLeadsIdRoute,
   CrmRecordsIndexRoute: CrmRecordsIndexRoute,
   LtLeadsIndexRoute: LtLeadsIndexRoute,
 }
