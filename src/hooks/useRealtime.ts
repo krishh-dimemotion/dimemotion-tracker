@@ -9,6 +9,7 @@ const WATCHED_TABLES = [
   "lead_contacts",
   "lead_links",
   "lead_tags",
+  "lead_tasks",
   "crm_records",
   "crm_contact_log",
   "outreach_daily",

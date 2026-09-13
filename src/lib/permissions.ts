@@ -26,6 +26,7 @@ export const PERMISSION_GROUPS: { label: string; keys: { key: string; label: str
       { key: "crm.records", label: "Records" },
       { key: "crm.pipeline", label: "Pipeline" },
       { key: "crm.followups", label: "Follow-ups" },
+      { key: "crm.todos", label: "To-dos" },
       { key: "crm.record_edit", label: "Edit records" },
       { key: "crm.revenue", label: "Revenue" },
     ],
