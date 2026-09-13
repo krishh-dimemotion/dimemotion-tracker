@@ -228,6 +228,13 @@ function LeadDetailPage() {
 
   const pushToCrm = useMutation({
     mutationFn: async () => {
+      const sentiment = (leadQuery.data as any)?.reply_sentiment;
+      if (sentiment !== "positive") {
+        const ok = window.confirm(
+          "This lead does not have a positive reply. Only positive replies normally go to the CRM. Push it anyway?",
+        );
+        if (!ok) return;
+      }
       const { error } = await supabase.rpc("ensure_crm_record", { _lead_id: id });
       if (error) throw error;
     },
