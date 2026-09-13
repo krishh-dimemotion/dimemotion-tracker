@@ -1,13 +1,25 @@
 import { useEffect, useState } from "react";
-import { Plus } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ChevronDown, Plus } from "lucide-react";
+import { toast } from "sonner";
 import { CollapsibleCard } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { supabase } from "@/integrations/supabase/client";
 import { toDateInput } from "@/lib/format";
 import type { LeadFollowup, Channel } from "@/components/leads/types";
+
+type TemplateStep = { offset_days: number; channel_kind?: string; label?: string };
+type FollowupTemplate = {
+  id: string;
+  name: string;
+  is_default: boolean;
+  steps: TemplateStep[];
+};
 
 function FollowupRow({
   fu,
@@ -89,16 +101,70 @@ export function FollowupsCard({
   followups,
   channels,
   canEdit,
+  leadId,
+  lastContactedAt,
   onChange,
   onAdd,
+  invalidate,
 }: {
   followups: LeadFollowup[];
   channels: Channel[];
   canEdit: boolean;
+  leadId: string;
+  lastContactedAt?: string | null;
   onChange: (id: string, patch: Record<string, unknown>) => void;
   onAdd: () => void;
+  invalidate: () => void;
 }) {
   const sorted = [...followups].sort((a, b) => a.sequence_number - b.sequence_number);
+
+  const templatesQuery = useQuery({
+    queryKey: ["followup_templates"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("followup_templates").select("*").order("name");
+      if (error) throw error;
+      return (data ?? []) as unknown as FollowupTemplate[];
+    },
+  });
+
+  const channelByKind = (kind?: string) => {
+    if (!kind) return null;
+    const lower = kind.toLowerCase();
+    return channels.find((c) => c.name.toLowerCase().includes(lower))?.id ?? null;
+  };
+
+  const applyTemplate = async (template: FollowupTemplate) => {
+    const steps = Array.isArray(template.steps) ? (template.steps as TemplateStep[]) : [];
+    if (steps.length === 0) {
+      toast.error("This template has no steps");
+      return;
+    }
+    const baseDate = lastContactedAt ? new Date(lastContactedAt) : new Date();
+    let nextSeq = followups.length > 0 ? Math.max(...followups.map((f) => f.sequence_number)) + 1 : 1;
+
+    const rows = steps.map((step) => {
+      const d = new Date(baseDate);
+      d.setDate(d.getDate() + (step.offset_days ?? 0));
+      const row = {
+        lead_id: leadId,
+        sequence_number: nextSeq,
+        scheduled_date: d.toISOString(),
+        status: "pending",
+        channel_id: channelByKind(step.channel_kind),
+        notes: step.label ?? null,
+      };
+      nextSeq += 1;
+      return row;
+    });
+
+    const { error } = await supabase.from("lead_followups").insert(rows as never);
+    if (error) toast.error(error.message);
+    else {
+      toast.success(`Applied "${template.name}"`);
+      invalidate();
+    }
+  };
+
   return (
     <CollapsibleCard id="lead.followups" title="Follow-ups">
       <div className="flex flex-col gap-2">
@@ -106,9 +172,26 @@ export function FollowupsCard({
           <FollowupRow key={fu.id} fu={fu} channels={channels} canEdit={canEdit} onChange={(p) => onChange(fu.id, p)} />
         ))}
         {canEdit && (
-          <Button variant="outline" size="sm" className="w-fit" onClick={onAdd}>
-            <Plus className="mr-1 size-3.5" /> Add follow-up
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" className="w-fit" onClick={onAdd}>
+              <Plus className="mr-1 size-3.5" /> Add follow-up
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="w-fit" disabled={!templatesQuery.data?.length}>
+                  Apply template <ChevronDown className="ml-1 size-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                {(templatesQuery.data ?? []).map((t) => (
+                  <DropdownMenuItem key={t.id} onClick={() => applyTemplate(t)}>
+                    {t.name}
+                    {t.is_default ? " (default)" : ""}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         )}
       </div>
     </CollapsibleCard>

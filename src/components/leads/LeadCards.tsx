@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
+import { ExternalLink } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { StagePill, stageById } from "./StagePill";
 import { Pill } from "@/components/kit";
@@ -42,9 +43,21 @@ export function LeadCards({
                   <Checkbox checked={selected.has(l.id)} onCheckedChange={() => onToggle(l.id)} />
                   <StagePill stage={stageById(stages, l.stage_id)} />
                 </div>
-                <Link to="/lt/leads/$id" params={{ id: l.id }} className="text-[13px] font-medium hover:underline">
-                  {l.company_name}
-                </Link>
+                <div className="flex items-center gap-1.5">
+                  <Link to="/lt/leads/$id" params={{ id: l.id }} className="text-[13px] font-medium hover:underline">
+                    {l.company_name}
+                  </Link>
+                  <a
+                    href={`/lt/leads/${l.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-muted-foreground hover:text-foreground"
+                    title="Open in new tab"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <ExternalLink className="size-3" />
+                  </a>
+                </div>
                 <div className="label-text mt-1">{l.primary_contact || "No contact"} · {countryName(l.country_id)}</div>
                 <div className="mt-2 flex items-center justify-between text-[12px] text-muted-foreground">
                   <Pill>{l.status}</Pill>

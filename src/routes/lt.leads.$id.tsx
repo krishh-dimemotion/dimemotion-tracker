@@ -2,13 +2,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Archive, ArchiveRestore, ExternalLink, Plus, Trash2, Upload } from "lucide-react";
+import { Archive, ArchiveRestore, ChevronDown, ExternalLink, Plus, Trash2, Upload } from "lucide-react";
 import { AppPage } from "@/components/app-shell";
 import { CollapsibleCard, EmptyState, Loading, MANUAL_HELPER, Pill, CheckDate } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { isTypingTarget } from "@/lib/shortcuts";
@@ -356,6 +358,9 @@ function LeadDetailPage() {
             followups={followups}
             channels={channels ?? []}
             canEdit={canEdit}
+            leadId={id}
+            lastContactedAt={lead.last_contacted_at}
+            invalidate={invalidate}
             onChange={(fid, patch) => {
               void supabase
                 .from("lead_followups")
@@ -377,7 +382,7 @@ function LeadDetailPage() {
                 });
             }}
           />
-          <OtherChannelsCard lead={lead} canEdit={canEdit} onSave={(p) => updateLead.mutate(p)} />
+          <OtherChannelsCard lead={lead} channels={channels ?? []} canEdit={canEdit} onSave={(p) => updateLead.mutate(p)} />
           <OutcomeCard
             lead={lead}
             canEdit={canEdit}
@@ -908,12 +913,113 @@ function LoomCard({ lead, canEdit, onSave }: { lead: any; canEdit: boolean; onSa
   );
 }
 
-function OtherChannelsCard({ lead, canEdit, onSave }: { lead: any; canEdit: boolean; onSave: (p: Record<string, unknown>) => void }) {
+function ChannelMenu({
+  channels,
+  value,
+  onSelect,
+  disabled,
+  title,
+}: {
+  channels: any[];
+  value: string | null;
+  onSelect: (id: string | null) => void;
+  disabled?: boolean;
+  title: string;
+}) {
+  const current = channels.find((c) => c.id === value);
   return (
-    <CollapsibleCard id="lead.other_channels" title="Other channels">
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild disabled={disabled}>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 gap-1 px-2 text-[12px] text-muted-foreground"
+          title={title}
+        >
+          {current?.name ?? "Channel"} <ChevronDown className="size-3" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => onSelect(null)}>None</DropdownMenuItem>
+        {channels.map((c) => (
+          <DropdownMenuItem key={c.id} onClick={() => onSelect(c.id)}>
+            {c.name}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function KindToggle({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: "email" | "message";
+  onChange: (v: "email" | "message") => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="flex overflow-hidden rounded-md border border-border text-[12px]">
+      <button
+        type="button"
+        disabled={disabled}
+        className={cn("px-2 py-1", value === "email" ? "bg-accent font-medium" : "text-muted-foreground")}
+        onClick={() => onChange("email")}
+      >
+        Email
+      </button>
+      <button
+        type="button"
+        disabled={disabled}
+        className={cn("border-l border-border px-2 py-1", value === "message" ? "bg-accent font-medium" : "text-muted-foreground")}
+        onClick={() => onChange("message")}
+      >
+        Message
+      </button>
+    </div>
+  );
+}
+
+function OtherChannelsCard({
+  lead,
+  channels,
+  canEdit,
+  onSave,
+}: {
+  lead: any;
+  channels: any[];
+  canEdit: boolean;
+  onSave: (p: Record<string, unknown>) => void;
+}) {
+  const [contactKind, setContactKind] = useState<"email" | "message">("message");
+  const [replyKind, setReplyKind] = useState<"email" | "message">("message");
+
+  const contactChannel = channels.find((c) => c.id === lead.contacted_channel_id);
+  const contactIsInstagram = (contactChannel?.name ?? "").toLowerCase().includes("instagram");
+
+  const replyChannel = channels.find((c) => c.id === lead.reply_channel_id);
+  const replyIsInstagram = (replyChannel?.name ?? "").toLowerCase().includes("instagram");
+
+  const contactChecked = contactKind === "email" ? lead.email_sent : contactIsInstagram ? lead.instagram_sent : lead.linkedin_sent;
+  const contactDate = contactKind === "email" ? lead.email_sent_at : contactIsInstagram ? lead.instagram_sent_at : lead.linkedin_sent_at;
+
+  const replyChecked = replyKind === "email" ? lead.email_replied : replyIsInstagram ? lead.instagram_replied : lead.linkedin_replied;
+  const replyDate = replyKind === "email" ? lead.email_replied_at : replyIsInstagram ? lead.instagram_replied_at : lead.linkedin_replied_at;
+
+  return (
+    <CollapsibleCard id="lead.other_channels" title="Outreach">
       <div className="flex flex-col gap-1">
         <CheckDate
-          label="LinkedIn sent"
+          label="LinkedIn connection request sent"
+          checked={lead.linkedin_connection_sent}
+          date={lead.linkedin_connection_sent_at}
+          disabled={!canEdit}
+          onChange={(checked, date) => onSave({ linkedin_connection_sent: checked, linkedin_connection_sent_at: date })}
+        />
+        <CheckDate
+          label="LinkedIn message sent"
           checked={lead.linkedin_sent}
           date={lead.linkedin_sent_at}
           disabled={!canEdit}
@@ -940,6 +1046,52 @@ function OtherChannelsCard({ lead, canEdit, onSave }: { lead: any; canEdit: bool
           disabled={!canEdit}
           onChange={(checked, date) => onSave({ instagram_replied: checked, instagram_replied_at: date })}
         />
+
+        <div className="mt-2 border-t border-border pt-2">
+          <div className="flex flex-wrap items-center gap-3 py-1">
+            <CheckDate
+              label="Contacted"
+              checked={!!contactChecked}
+              date={contactDate}
+              disabled={!canEdit}
+              onChange={(checked, date) => {
+                if (contactKind === "email") onSave({ email_sent: checked, email_sent_at: date });
+                else if (contactIsInstagram) onSave({ instagram_sent: checked, instagram_sent_at: date });
+                else onSave({ linkedin_sent: checked, linkedin_sent_at: date });
+              }}
+            />
+            <KindToggle value={contactKind} onChange={setContactKind} disabled={!canEdit} />
+            <ChannelMenu
+              title="Channel used to contact"
+              channels={channels}
+              value={lead.contacted_channel_id}
+              disabled={!canEdit}
+              onSelect={(v) => onSave({ contacted_channel_id: v })}
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-3 py-1">
+            <CheckDate
+              label="Replied"
+              checked={!!replyChecked}
+              date={replyDate}
+              disabled={!canEdit}
+              onChange={(checked, date) => {
+                if (replyKind === "email") onSave({ email_replied: checked, email_replied_at: date });
+                else if (replyIsInstagram) onSave({ instagram_replied: checked, instagram_replied_at: date });
+                else onSave({ linkedin_replied: checked, linkedin_replied_at: date });
+              }}
+            />
+            <KindToggle value={replyKind} onChange={setReplyKind} disabled={!canEdit} />
+            <ChannelMenu
+              title="Channel the reply came in on"
+              channels={channels}
+              value={lead.reply_channel_id}
+              disabled={!canEdit}
+              onSelect={(v) => onSave({ reply_channel_id: v })}
+            />
+          </div>
+          <div className="label-text mt-1">{MANUAL_HELPER}</div>
+        </div>
       </div>
     </CollapsibleCard>
   );

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { PERMISSION_GROUPS } from "@/lib/permissions";
+import { ALL_PERMISSION_KEYS, PERMISSION_GROUPS } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -14,6 +14,9 @@ import { Loading, Pill } from "@/components/kit";
 
 type Role = "owner" | "admin" | "member";
 
+const SELECT_ALL = "__select_all__";
+const CUSTOM = "__custom__";
+
 export function UsersCard() {
   const { profile: me } = useAuth();
   const qc = useQueryClient();
@@ -21,6 +24,8 @@ export function UsersCard() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [invitePerms, setInvitePerms] = useState<string[]>([]);
+  const [invitePreset, setInvitePreset] = useState<string>(CUSTOM);
+  const [editPreset, setEditPreset] = useState<string>(CUSTOM);
 
   const { data: profiles, isLoading } = useQuery({
     queryKey: ["all_profiles"],
@@ -35,6 +40,15 @@ export function UsersCard() {
     queryKey: ["all_user_permissions"],
     queryFn: async () => {
       const { data, error } = await supabase.from("user_permissions").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const { data: presets } = useQuery({
+    queryKey: ["permission_presets"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("permission_presets").select("*").order("created_at");
       if (error) throw error;
       return data ?? [];
     },
@@ -70,7 +84,43 @@ export function UsersCard() {
       .from("user_permissions")
       .upsert({ user_id: userId, permission_key: key, enabled }, { onConflict: "user_id,permission_key" });
     if (error) return window.alert(error.message);
+    setEditPreset(CUSTOM);
     invalidate();
+  };
+
+  const applyPresetToUser = async (userId: string, presetValue: string) => {
+    setEditPreset(presetValue);
+    let enabledKeys: string[];
+    if (presetValue === SELECT_ALL) {
+      enabledKeys = ALL_PERMISSION_KEYS;
+    } else if (presetValue === CUSTOM) {
+      return;
+    } else {
+      const preset = (presets ?? []).find((p) => p.id === presetValue);
+      enabledKeys = preset?.permission_keys ?? [];
+    }
+    const rows = ALL_PERMISSION_KEYS.map((key) => ({
+      user_id: userId,
+      permission_key: key,
+      enabled: enabledKeys.includes(key),
+    }));
+    const { error } = await supabase
+      .from("user_permissions")
+      .upsert(rows, { onConflict: "user_id,permission_key" });
+    if (error) return window.alert(error.message);
+    invalidate();
+  };
+
+  const applyPresetToInvite = (presetValue: string) => {
+    setInvitePreset(presetValue);
+    if (presetValue === SELECT_ALL) {
+      setInvitePerms(ALL_PERMISSION_KEYS);
+    } else if (presetValue === CUSTOM) {
+      return;
+    } else {
+      const preset = (presets ?? []).find((p) => p.id === presetValue);
+      setInvitePerms(preset?.permission_keys ?? []);
+    }
   };
 
   const sendInvite = async () => {
@@ -90,6 +140,7 @@ export function UsersCard() {
     }
     setInviteEmail("");
     setInvitePerms([]);
+    setInvitePreset(CUSTOM);
     setInviteOpen(false);
     invalidate();
   };
@@ -113,7 +164,10 @@ export function UsersCard() {
           <button
             key={p.id}
             type="button"
-            onClick={() => setSelected(p.id)}
+            onClick={() => {
+              setSelected(p.id);
+              setEditPreset(CUSTOM);
+            }}
             className="flex flex-wrap items-center gap-3 rounded-md border border-border bg-subtle px-3 py-2 text-left"
           >
             {p.avatar_url ? (
@@ -148,7 +202,7 @@ export function UsersCard() {
                 <DialogTitle>{selectedUser.full_name || selectedUser.email}</DialogTitle>
               </DialogHeader>
               <div className="flex flex-col gap-4">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="label-text">Role</span>
                   <Select
                     value={selectedUser.role}
@@ -162,6 +216,21 @@ export function UsersCard() {
                       <SelectItem value="member">Member</SelectItem>
                       <SelectItem value="admin">Admin</SelectItem>
                       <SelectItem value="owner">Owner</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <span className="label-text ml-2">Preset</span>
+                  <Select value={editPreset} onValueChange={(v) => applyPresetToUser(selectedUser.id, v)}>
+                    <SelectTrigger className="h-8 w-44 text-[13px]">
+                      <SelectValue placeholder="Custom" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={CUSTOM}>Custom</SelectItem>
+                      <SelectItem value={SELECT_ALL}>Select all</SelectItem>
+                      {(presets ?? []).map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -187,7 +256,13 @@ export function UsersCard() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+      <Dialog
+        open={inviteOpen}
+        onOpenChange={(v) => {
+          setInviteOpen(v);
+          if (!v) setInvitePreset(CUSTOM);
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Invite by email</DialogTitle>
@@ -198,6 +273,23 @@ export function UsersCard() {
             onChange={(e) => setInviteEmail(e.target.value)}
             className="h-9 text-[13px]"
           />
+          <div className="flex items-center gap-2">
+            <span className="label-text">Preset</span>
+            <Select value={invitePreset} onValueChange={applyPresetToInvite}>
+              <SelectTrigger className="h-8 w-44 text-[13px]">
+                <SelectValue placeholder="Custom" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={CUSTOM}>Custom</SelectItem>
+                <SelectItem value={SELECT_ALL}>Select all</SelectItem>
+                {(presets ?? []).map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="max-h-64 overflow-y-auto">
             {PERMISSION_GROUPS.map((g) => (
               <div key={g.label} className="mb-2">
@@ -206,11 +298,12 @@ export function UsersCard() {
                   <label key={k.key} className="flex items-center gap-2 text-[13px]">
                     <Checkbox
                       checked={invitePerms.includes(k.key)}
-                      onCheckedChange={(v) =>
+                      onCheckedChange={(v) => {
+                        setInvitePreset(CUSTOM);
                         setInvitePerms((prev) =>
                           v === true ? [...prev, k.key] : prev.filter((x) => x !== k.key),
-                        )
-                      }
+                        );
+                      }}
                     />
                     {k.label}
                   </label>

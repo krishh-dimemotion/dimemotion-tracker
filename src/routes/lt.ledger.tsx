@@ -1,12 +1,15 @@
 import { useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { AppPage } from "@/components/app-shell";
-import { Card, EmptyState, Loading } from "@/components/kit";
+import { Card, EmptyState, Loading, Metric } from "@/components/kit";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
-import { downloadCsv, pct, todayISO } from "@/lib/format";
+import { useChannels } from "@/hooks/useLookups";
+import { downloadCsv, fmtDateTime, todayISO } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/lt/ledger")({
@@ -23,250 +26,272 @@ export const Route = createFileRoute("/lt/ledger")({
 
 type Period = "day" | "week" | "month" | "year";
 
+const PAGE_SIZE = 50;
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-function isoWeek(d: Date): { year: number; week: number } {
-  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-  const dayNum = (date.getUTCDay() + 6) % 7;
-  date.setUTCDate(date.getUTCDate() - dayNum + 3);
-  const firstThursday = new Date(Date.UTC(date.getUTCFullYear(), 0, 4));
-  const week = 1 + Math.round(((date.getTime() - firstThursday.getTime()) / 86400000 - 3 + ((firstThursday.getUTCDay() + 6) % 7)) / 7);
-  return { year: date.getUTCFullYear(), week };
+const EVENT_LABELS: Record<string, string> = {
+  created: "Lead created",
+  stage_changed: "Stage changed",
+  status_changed: "Status changed",
+  email_sent: "Email sent",
+  email_viewed: "Email viewed",
+  email_replied: "Email replied",
+  loom_sent: "Loom sent",
+  loom_watched: "Loom watched",
+  linkedin_sent: "LinkedIn sent",
+  linkedin_replied: "LinkedIn replied",
+  instagram_sent: "Instagram sent",
+  instagram_replied: "Instagram replied",
+  meeting_booked: "Meeting booked",
+  client_closed: "Client closed",
+  pushed_to_crm: "Pushed to CRM",
+  archived: "Archived",
+  restored: "Restored",
+  followup_sent: "Follow-up sent",
+  note: "Note added",
+};
+
+function eventLabel(type: string) {
+  return EVENT_LABELS[type] ?? type.replace(/_/g, " ");
 }
 
-function isoWeekRange(year: number, week: number): { start: Date; end: Date } {
-  const jan4 = new Date(Date.UTC(year, 0, 4));
-  const dayNum = (jan4.getUTCDay() + 6) % 7;
-  const monday1 = new Date(jan4);
-  monday1.setUTCDate(jan4.getUTCDate() - dayNum);
-  const start = new Date(monday1);
-  start.setUTCDate(monday1.getUTCDate() + (week - 1) * 7);
-  const end = new Date(start);
-  end.setUTCDate(start.getUTCDate() + 6);
-  return { start, end };
+function toISO(d: Date) {
+  return d.toISOString().slice(0, 10);
+}
+
+function parseISO(iso: string) {
+  return new Date(`${iso}T12:00:00Z`);
 }
 
 function fmtShort(d: Date) {
-  return d.toLocaleDateString(undefined, { day: "2-digit", month: "short" });
+  return d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
 }
 
-type Bucket = {
-  key: string;
-  label: string;
-  start: string;
-  end: string;
-};
-
-function buildBuckets(period: Period, year: number): Bucket[] {
-  const buckets: Bucket[] = [];
-  if (period === "day") {
-    const start = new Date(Date.UTC(year, 0, 1));
-    const end = new Date(Date.UTC(year, 11, 31));
-    for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
-      const iso = d.toISOString().slice(0, 10);
-      buckets.push({ key: iso, label: fmtShort(d), start: iso, end: iso });
-    }
-  } else if (period === "week") {
-    for (let w = 1; w <= 53; w++) {
-      const { start, end } = isoWeekRange(year, w);
-      if (start.getUTCFullYear() > year && w > 1) break;
-      const check = isoWeek(start);
-      if (check.year !== year) continue;
-      buckets.push({
-        key: `${year}-W${String(w).padStart(2, "0")}`,
-        label: `W${String(w).padStart(2, "0")} (${fmtShort(start)} - ${fmtShort(end)})`,
-        start: start.toISOString().slice(0, 10),
-        end: end.toISOString().slice(0, 10),
-      });
-    }
-  } else if (period === "month") {
-    for (let m = 0; m < 12; m++) {
-      const start = new Date(Date.UTC(year, m, 1));
-      const end = new Date(Date.UTC(year, m + 1, 0));
-      buckets.push({ key: `${year}-${m}`, label: `${MONTHS[m]} ${year}`, start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) });
-    }
-  } else {
-    const start = new Date(Date.UTC(year, 0, 1));
-    const end = new Date(Date.UTC(year, 11, 31));
-    buckets.push({ key: `${year}`, label: `${year}`, start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) });
-  }
-  return buckets;
+function addDaysUTC(d: Date, days: number) {
+  const n = new Date(d);
+  n.setUTCDate(n.getUTCDate() + days);
+  return n;
 }
 
-type Row = {
-  key: string;
-  label: string;
-  leadsAdded: number;
-  emailsSent: number;
-  emailsViewed: number;
-  replies: number;
-  loomsSent: number;
-  loomsWatched: number;
-  linkedinSent: number;
-  instagramSent: number;
-  meetingsBooked: number;
-  clientsClosed: number;
+function weekRange(d: Date) {
+  const dow = (d.getUTCDay() + 6) % 7; // Mon = 0
+  const start = addDaysUTC(d, -dow);
+  const end = addDaysUTC(start, 6);
+  return { start, end };
+}
+
+function monthRange(d: Date) {
+  const start = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
+  const end = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0));
+  return { start, end };
+}
+
+function yearRange(d: Date) {
+  const start = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const end = new Date(Date.UTC(d.getUTCFullYear(), 11, 31));
+  return { start, end };
+}
+
+function rangeFor(period: Period, anchor: Date) {
+  if (period === "day") return { start: anchor, end: anchor };
+  if (period === "week") return weekRange(anchor);
+  if (period === "month") return monthRange(anchor);
+  return yearRange(anchor);
+}
+
+function periodLabel(period: Period, anchor: Date) {
+  const { start, end } = rangeFor(period, anchor);
+  if (period === "day") return anchor.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+  if (period === "week") return `Week of ${fmtShort(start)} - ${fmtShort(end)}, ${end.getUTCFullYear()}`;
+  if (period === "month") return `${MONTHS[start.getUTCMonth()]} ${start.getUTCFullYear()}`;
+  return `${start.getUTCFullYear()}`;
+}
+
+function shiftAnchor(period: Period, anchor: Date, dir: 1 | -1) {
+  if (period === "day") return addDaysUTC(anchor, dir);
+  if (period === "week") return addDaysUTC(anchor, dir * 7);
+  if (period === "month") return new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth() + dir, 1));
+  return new Date(Date.UTC(anchor.getUTCFullYear() + dir, anchor.getUTCMonth(), 1));
+}
+
+function metaSummary(meta: unknown, channelMap: Map<string, string>): string {
+  if (!meta || typeof meta !== "object") return "";
+  const m = meta as Record<string, unknown>;
+  const parts: string[] = [];
+  if (typeof m["channel_id"] === "string" && channelMap.get(m["channel_id"] as string)) parts.push(channelMap.get(m["channel_id"] as string)!);
+  if (typeof m["channel"] === "string") parts.push(m["channel"] as string);
+  if (typeof m["subject"] === "string") parts.push(m["subject"] as string);
+  const fromName = typeof m["from"] === "string" ? m["from"] : typeof m["from_stage"] === "string" ? m["from_stage"] : null;
+  const toName = typeof m["to"] === "string" ? m["to"] : typeof m["to_stage"] === "string" ? m["to_stage"] : null;
+  if (fromName && toName) parts.push(`${fromName} to ${toName}`);
+  if (typeof m["note"] === "string") parts.push(m["note"] as string);
+  return parts.join(" \u00b7 ");
+}
+
+type EventRow = {
+  id: string;
+  event_type: string;
+  occurred_at: string;
+  meta: unknown;
+  lead_id: string | null;
+  leads: { company_name: string | null } | null;
+  profiles: { full_name: string | null; email: string | null } | null;
 };
 
-function emptyRow(b: Bucket): Row {
+function delta(current: number, previous: number): { text: string; tone?: "positive" | "negative" } {
+  const diff = current - previous;
+  const pctText = previous > 0 ? `${diff >= 0 ? "+" : ""}${Math.round((diff / previous) * 100)}%` : current > 0 ? "new" : "0%";
+  const sign = diff > 0 ? "+" : "";
   return {
-    key: b.key,
-    label: b.label,
-    leadsAdded: 0,
-    emailsSent: 0,
-    emailsViewed: 0,
-    replies: 0,
-    loomsSent: 0,
-    loomsWatched: 0,
-    linkedinSent: 0,
-    instagramSent: 0,
-    meetingsBooked: 0,
-    clientsClosed: 0,
+    text: `${sign}${diff} (${pctText}) vs prev`,
+    tone: diff > 0 ? "positive" : diff < 0 ? "negative" : undefined,
   };
+}
+
+function countTypes(events: EventRow[] | undefined, types: string[]) {
+  return (events ?? []).filter((e) => types.includes(e.event_type)).length;
+}
+
+function useLedgerRange(period: Period, anchorISO: string) {
+  return useMemo(() => {
+    const anchor = parseISO(anchorISO);
+    const { start, end } = rangeFor(period, anchor);
+    const prevAnchor = shiftAnchor(period, anchor, -1);
+    const prevRange = period === "day" ? rangeFor(period, prevAnchor) : rangeFor(period, prevAnchor);
+    return { anchor, start: toISO(start), end: toISO(end), prevStart: toISO(prevRange.start), prevEnd: toISO(prevRange.end) };
+  }, [period, anchorISO]);
 }
 
 function LedgerPage() {
-  const [period, setPeriod] = useState<Period>("month");
-  const [year, setYear] = useState<number>(new Date().getFullYear());
+  const [period, setPeriod] = useState<Period>("day");
+  const [anchorISO, setAnchorISO] = useState<string>(todayISO());
+  const [visible, setVisible] = useState(PAGE_SIZE);
 
-  const buckets = useMemo(() => buildBuckets(period, year), [period, year]);
-  const rangeStart = buckets[0]?.start ?? `${year}-01-01`;
-  const rangeEnd = buckets[buckets.length - 1]?.end ?? `${year}-12-31`;
+  const { anchor, start, end, prevStart, prevEnd } = useLedgerRange(period, anchorISO);
+  const { data: channels } = useChannels();
+  const channelMap = useMemo(() => new Map((channels ?? []).map((c: any) => [c.id, c.name])), [channels]);
 
-  const { data: leads, isLoading: leadsLoading } = useQuery({
-    queryKey: ["ledger-leads", rangeStart, rangeEnd],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("leads")
-        .select("date_added")
-        .gte("date_added", rangeStart)
-        .lte("date_added", rangeEnd);
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
+  const setPeriodAndReset = (p: Period) => {
+    setPeriod(p);
+    setVisible(PAGE_SIZE);
+  };
+  const nav = (dir: 1 | -1) => {
+    setAnchorISO(toISO(shiftAnchor(period, anchor, dir)));
+    setVisible(PAGE_SIZE);
+  };
+  const goToday = () => {
+    setAnchorISO(todayISO());
+    setVisible(PAGE_SIZE);
+  };
 
-  const { data: events, isLoading: eventsLoading } = useQuery({
-    queryKey: ["ledger-events", rangeStart, rangeEnd],
+  const eventsQuery = useQuery({
+    queryKey: ["ledger-events", start, end],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("lead_events")
-        .select("event_type,occurred_at")
-        .gte("occurred_at", `${rangeStart}T00:00:00`)
-        .lte("occurred_at", `${rangeEnd}T23:59:59`)
-        .in("event_type", [
-          "email_sent",
-          "email_viewed",
-          "email_replied",
-          "loom_sent",
-          "loom_watched",
-          "linkedin_sent",
-          "instagram_sent",
-          "meeting_booked",
-          "client_closed",
-        ]);
+        .select("id, event_type, occurred_at, meta, lead_id, leads(company_name), profiles(full_name, email)")
+        .gte("occurred_at", `${start}T00:00:00`)
+        .lte("occurred_at", `${end}T23:59:59`)
+        .order("occurred_at", { ascending: false });
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []) as unknown as EventRow[];
     },
   });
 
-  const bucketFor = (dateStr: string): string | null => {
-    const d = new Date(dateStr.slice(0, 10) + "T12:00:00Z");
-    if (period === "day") return dateStr.slice(0, 10);
-    if (period === "week") {
-      const { year: y, week } = isoWeek(d);
-      return `${y}-W${String(week).padStart(2, "0")}`;
-    }
-    if (period === "month") return `${d.getUTCFullYear()}-${d.getUTCMonth()}`;
-    return `${d.getUTCFullYear()}`;
-  };
+  const prevEventsQuery = useQuery({
+    queryKey: ["ledger-events-prev", prevStart, prevEnd],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("lead_events")
+        .select("event_type, occurred_at")
+        .gte("occurred_at", `${prevStart}T00:00:00`)
+        .lte("occurred_at", `${prevEnd}T23:59:59`);
+      if (error) throw error;
+      return (data ?? []) as unknown as EventRow[];
+    },
+  });
 
-  const rows = useMemo(() => {
-    const map = new Map<string, Row>();
-    for (const b of buckets) map.set(b.key, emptyRow(b));
-    for (const l of leads ?? []) {
-      if (!l.date_added) continue;
-      const k = bucketFor(l.date_added);
-      const r = k ? map.get(k) : null;
-      if (r) r.leadsAdded++;
-    }
-    for (const e of events ?? []) {
-      const k = bucketFor(e.occurred_at);
-      const r = k ? map.get(k) : null;
-      if (!r) continue;
-      switch (e.event_type) {
-        case "email_sent": r.emailsSent++; break;
-        case "email_viewed": r.emailsViewed++; break;
-        case "email_replied": r.replies++; break;
-        case "loom_sent": r.loomsSent++; break;
-        case "loom_watched": r.loomsWatched++; break;
-        case "linkedin_sent": r.linkedinSent++; break;
-        case "instagram_sent": r.instagramSent++; break;
-        case "meeting_booked": r.meetingsBooked++; break;
-        case "client_closed": r.clientsClosed++; break;
-      }
-    }
-    return Array.from(map.values());
-  }, [buckets, leads, events, period]);
+  const leadsAddedQuery = useQuery({
+    queryKey: ["ledger-leads-added", start, end],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("leads")
+        .select("id", { count: "exact", head: true })
+        .gte("date_added", start)
+        .lte("date_added", end);
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
 
-  const totals = useMemo(() => {
-    const t = emptyRow({ key: "total", label: "Total", start: "", end: "" });
-    for (const r of rows) {
-      t.leadsAdded += r.leadsAdded;
-      t.emailsSent += r.emailsSent;
-      t.emailsViewed += r.emailsViewed;
-      t.replies += r.replies;
-      t.loomsSent += r.loomsSent;
-      t.loomsWatched += r.loomsWatched;
-      t.linkedinSent += r.linkedinSent;
-      t.instagramSent += r.instagramSent;
-      t.meetingsBooked += r.meetingsBooked;
-      t.clientsClosed += r.clientsClosed;
-    }
-    return t;
-  }, [rows]);
+  const prevLeadsAddedQuery = useQuery({
+    queryKey: ["ledger-leads-added-prev", prevStart, prevEnd],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("leads")
+        .select("id", { count: "exact", head: true })
+        .gte("date_added", prevStart)
+        .lte("date_added", prevEnd);
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
 
-  const isLoading = leadsLoading || eventsLoading;
+  const isLoading = eventsQuery.isLoading || leadsAddedQuery.isLoading;
+  const events = eventsQuery.data ?? [];
+  const prevEvents = prevEventsQuery.data;
+
+  const metrics = [
+    { label: "Leads added", current: leadsAddedQuery.data ?? 0, previous: prevLeadsAddedQuery.data ?? 0 },
+    { label: "Emails sent", current: countTypes(events, ["email_sent"]), previous: countTypes(prevEvents, ["email_sent"]) },
+    { label: "Replies", current: countTypes(events, ["email_replied", "linkedin_replied", "instagram_replied"]), previous: countTypes(prevEvents, ["email_replied", "linkedin_replied", "instagram_replied"]) },
+    { label: "Meetings booked", current: countTypes(events, ["meeting_booked"]), previous: countTypes(prevEvents, ["meeting_booked"]) },
+    { label: "Clients closed", current: countTypes(events, ["client_closed"]), previous: countTypes(prevEvents, ["client_closed"]) },
+  ];
+
+  const weekOptions = useMemo(() => {
+    const opts: { value: string; label: string }[] = [];
+    const cur = weekRange(parseISO(todayISO())).start;
+    for (let i = 0; i < 26; i++) {
+      const monday = addDaysUTC(cur, -7 * i);
+      opts.push({ value: toISO(monday), label: `Week of ${fmtShort(monday)}` });
+    }
+    return opts;
+  }, []);
+
+  const monthOptions = useMemo(() => {
+    const opts: { value: string; label: string }[] = [];
+    const now = new Date();
+    for (let i = 0; i < 24; i++) {
+      const m = new Date(Date.UTC(now.getFullYear(), now.getMonth() - i, 1));
+      opts.push({ value: toISO(m), label: `${MONTHS[m.getUTCMonth()]} ${m.getUTCFullYear()}` });
+    }
+    return opts;
+  }, []);
 
   const yearOptions = useMemo(() => {
     const cur = new Date().getFullYear();
-    const arr: number[] = [];
-    for (let y = cur; y >= cur - 5; y--) arr.push(y);
+    const arr: { value: string; label: string }[] = [];
+    for (let y = cur; y >= cur - 6; y--) arr.push({ value: toISO(new Date(Date.UTC(y, 0, 1))), label: String(y) });
     return arr;
   }, []);
 
+  const selectedWeekValue = toISO(weekRange(anchor).start);
+  const selectedMonthValue = toISO(monthRange(anchor).start);
+  const selectedYearValue = toISO(yearRange(anchor).start);
+
+  const visibleEvents = events.slice(0, visible);
+
   const exportCsv = () => {
-    const header = [
-      "Period",
-      "Leads added",
-      "Emails sent",
-      "Emails viewed",
-      "Open %",
-      "Replies",
-      "Reply %",
-      "Looms sent",
-      "Looms watched",
-      "LinkedIn sent",
-      "Instagram sent",
-      "Meetings booked",
-      "Clients closed",
+    const header = ["Date", "Lead", "Event", "Details", "User"];
+    const toRow = (e: EventRow) => [
+      fmtDateTime(e.occurred_at),
+      e.leads?.company_name ?? "",
+      eventLabel(e.event_type),
+      metaSummary(e.meta, channelMap),
+      e.profiles?.full_name ?? e.profiles?.email ?? "",
     ];
-    const toRow = (r: Row) => [
-      r.label,
-      r.leadsAdded,
-      r.emailsSent,
-      r.emailsViewed,
-      pct(r.emailsViewed, r.emailsSent).text,
-      r.replies,
-      pct(r.replies, r.emailsSent).text,
-      r.loomsSent,
-      r.loomsWatched,
-      r.linkedinSent,
-      r.instagramSent,
-      r.meetingsBooked,
-      r.clientsClosed,
-    ];
-    downloadCsv(`ledger-${period}-${year}.csv`, [header, ...rows.map(toRow), toRow(totals)]);
+    downloadCsv(`ledger-${period}-${start}.csv`, [header, ...events.map(toRow)]);
   };
 
   return (
@@ -283,7 +308,7 @@ function LedgerPage() {
               {(["day", "week", "month", "year"] as Period[]).map((p) => (
                 <button
                   key={p}
-                  onClick={() => setPeriod(p)}
+                  onClick={() => setPeriodAndReset(p)}
                   className={cn(
                     "rounded px-3 py-1 text-[13px] capitalize",
                     period === p ? "bg-subtle font-medium" : "text-muted-foreground",
@@ -293,74 +318,111 @@ function LedgerPage() {
                 </button>
               ))}
             </div>
-            <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
-              <SelectTrigger className="h-8 w-[110px] text-[13px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {yearOptions.map((y) => (
-                  <SelectItem key={y} value={String(y)}>{y}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+
+            <Button size="icon" variant="outline" className="size-8" onClick={() => nav(-1)}>
+              <ChevronLeft className="size-4" />
+            </Button>
+
+            {period === "day" && (
+              <Input
+                type="date"
+                value={anchorISO}
+                onChange={(e) => {
+                  setAnchorISO(e.target.value || todayISO());
+                  setVisible(PAGE_SIZE);
+                }}
+                className="h-8 w-[150px] text-[13px]"
+              />
+            )}
+            {period === "week" && (
+              <Select value={selectedWeekValue} onValueChange={(v) => { setAnchorISO(v); setVisible(PAGE_SIZE); }}>
+                <SelectTrigger className="h-8 w-[190px] text-[13px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {weekOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
+            {period === "month" && (
+              <Select value={selectedMonthValue} onValueChange={(v) => { setAnchorISO(v); setVisible(PAGE_SIZE); }}>
+                <SelectTrigger className="h-8 w-[150px] text-[13px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {monthOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
+            {period === "year" && (
+              <Select value={selectedYearValue} onValueChange={(v) => { setAnchorISO(v); setVisible(PAGE_SIZE); }}>
+                <SelectTrigger className="h-8 w-[110px] text-[13px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {yearOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
+
+            <Button size="icon" variant="outline" className="size-8" onClick={() => nav(1)}>
+              <ChevronRight className="size-4" />
+            </Button>
+
+            <Button size="sm" variant="outline" onClick={goToday}>Today</Button>
+
+            <div className="ml-auto text-[13px] text-muted-foreground">{periodLabel(period, anchor)}</div>
           </div>
         </Card>
+
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          {metrics.map((m) => {
+            const d = delta(m.current, m.previous);
+            return <Metric key={m.label} label={m.label} value={m.current} helper={d.text} tone={d.tone} />;
+          })}
+        </div>
 
         <Card className="overflow-hidden p-0">
           {isLoading ? (
             <Loading />
-          ) : rows.length === 0 ? (
-            <EmptyState title="No data" hint="No activity found for this range." />
+          ) : events.length === 0 ? (
+            <EmptyState title="No activity" hint="No lead events found for this period." />
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-[13px]">
-                <thead className="sticky top-0 bg-card">
-                  <tr className="border-b border-border">
-                    {["Period", "Leads added", "Emails sent", "Emails viewed", "Open %", "Replies", "Reply %", "Looms sent", "Looms watched", "LinkedIn sent", "Instagram sent", "Meetings booked", "Clients closed"].map((h) => (
-                      <th key={h} className="h-9 whitespace-nowrap px-3 text-right font-medium text-muted-foreground first:text-left">
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((r) => (
-                    <tr key={r.key} className="h-9 border-b border-border last:border-0 hover:bg-subtle">
-                      <td className="whitespace-nowrap px-3">{r.label}</td>
-                      <td className="px-3 text-right tabular-nums">{r.leadsAdded}</td>
-                      <td className="px-3 text-right tabular-nums">{r.emailsSent}</td>
-                      <td className="px-3 text-right tabular-nums">{r.emailsViewed}</td>
-                      <td className="px-3 text-right tabular-nums">{pct(r.emailsViewed, r.emailsSent).text}</td>
-                      <td className="px-3 text-right tabular-nums">{r.replies}</td>
-                      <td className="px-3 text-right tabular-nums">{pct(r.replies, r.emailsSent).text}</td>
-                      <td className="px-3 text-right tabular-nums">{r.loomsSent}</td>
-                      <td className="px-3 text-right tabular-nums">{r.loomsWatched}</td>
-                      <td className="px-3 text-right tabular-nums">{r.linkedinSent}</td>
-                      <td className="px-3 text-right tabular-nums">{r.instagramSent}</td>
-                      <td className="px-3 text-right tabular-nums">{r.meetingsBooked}</td>
-                      <td className="px-3 text-right tabular-nums">{r.clientsClosed}</td>
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full text-[13px]">
+                  <thead>
+                    <tr className="border-b border-border">
+                      {["Date", "Lead", "Event", "Details", "User"].map((h) => (
+                        <th key={h} className="h-9 whitespace-nowrap px-3 text-left font-medium text-muted-foreground">
+                          {h}
+                        </th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="h-9 border-t border-border bg-subtle font-medium sticky bottom-0">
-                    <td className="px-3">Total</td>
-                    <td className="px-3 text-right tabular-nums">{totals.leadsAdded}</td>
-                    <td className="px-3 text-right tabular-nums">{totals.emailsSent}</td>
-                    <td className="px-3 text-right tabular-nums">{totals.emailsViewed}</td>
-                    <td className="px-3 text-right tabular-nums">{pct(totals.emailsViewed, totals.emailsSent).text}</td>
-                    <td className="px-3 text-right tabular-nums">{totals.replies}</td>
-                    <td className="px-3 text-right tabular-nums">{pct(totals.replies, totals.emailsSent).text}</td>
-                    <td className="px-3 text-right tabular-nums">{totals.loomsSent}</td>
-                    <td className="px-3 text-right tabular-nums">{totals.loomsWatched}</td>
-                    <td className="px-3 text-right tabular-nums">{totals.linkedinSent}</td>
-                    <td className="px-3 text-right tabular-nums">{totals.instagramSent}</td>
-                    <td className="px-3 text-right tabular-nums">{totals.meetingsBooked}</td>
-                    <td className="px-3 text-right tabular-nums">{totals.clientsClosed}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {visibleEvents.map((e) => (
+                      <tr key={e.id} className="h-9 border-b border-border last:border-0 hover:bg-subtle">
+                        <td className="whitespace-nowrap px-3 text-muted-foreground">{fmtDateTime(e.occurred_at)}</td>
+                        <td className="px-3">
+                          {e.lead_id ? (
+                            <Link to="/lt/leads/$id" params={{ id: e.lead_id }} className="text-primary hover:underline">
+                              {e.leads?.company_name ?? "View lead"}
+                            </Link>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </td>
+                        <td className="whitespace-nowrap px-3">{eventLabel(e.event_type)}</td>
+                        <td className="px-3 text-muted-foreground">{metaSummary(e.meta, channelMap)}</td>
+                        <td className="whitespace-nowrap px-3 text-muted-foreground">{e.profiles?.full_name ?? e.profiles?.email ?? ""}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {visible < events.length && (
+                <div className="flex justify-center border-t border-border p-3">
+                  <Button size="sm" variant="outline" onClick={() => setVisible((v) => v + PAGE_SIZE)}>
+                    Load more ({events.length - visible} remaining)
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </Card>
       </div>
