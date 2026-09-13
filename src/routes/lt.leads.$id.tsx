@@ -20,6 +20,7 @@ import { StagePill } from "@/components/leads/StagePill";
 import { PeopleCard } from "@/components/leads/detail/PeopleCard";
 import { FollowupsCard } from "@/components/leads/detail/FollowupsCard";
 import { ActivityFeed } from "@/components/leads/detail/ActivityFeed";
+import { LeadTasksCard } from "@/components/tasks/tasks";
 import { SENTIMENT_OPTIONS, STATUS_OPTIONS, PRIORITY_OPTIONS, type LeadContact, type LeadLink, type LeadFollowup } from "@/components/leads/types";
 
 export const Route = createFileRoute("/lt/leads/$id")({
@@ -351,6 +352,7 @@ function LeadDetailPage() {
                 });
             }}
           />
+          <LeadTasksCard leadId={id} canEdit={canEdit} />
           <NotesCard lead={lead} canEdit={canEdit} onSave={(p) => updateLead.mutate(p)} />
           <EmailCard lead={lead} canEdit={canEdit} onSave={(p) => updateLead.mutate(p)} />
           <LoomCard lead={lead} canEdit={canEdit} onSave={(p) => updateLead.mutate(p)} />
