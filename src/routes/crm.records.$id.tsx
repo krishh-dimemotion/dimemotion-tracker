@@ -64,7 +64,9 @@ function RecordDetailPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("crm_records")
-        .select("*, leads(*, lead_contacts(*))")
+        .select(
+          "*, leads(*, lead_contacts(*), lead_links(*), countries(name,flag_emoji), stages(name,color), sender_accounts(label,identifier), contacted:channels!leads_contacted_channel_id_fkey(name), reply:channels!leads_reply_channel_id_fkey(name))",
+        )
         .eq("id", id)
         .maybeSingle();
       if (error) throw error;
