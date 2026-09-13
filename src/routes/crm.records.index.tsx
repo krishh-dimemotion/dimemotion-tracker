@@ -201,6 +201,7 @@ function RecordsPage() {
         <td className="px-3">{r.leads?.primary_contact}</td>
         <td className="px-3">{primaryEmail(r)}</td>
         <td className="px-3 text-[12px] text-muted-foreground">{senderLabel(r)}</td>
+        <td className="px-3 text-[12px] capitalize">{(r.leads as any)?.reply_sentiment ?? "-"}</td>
         <td className="px-3">
           <Pill color={stage?.color}>{stage?.name ?? "-"}</Pill>
         </td>
@@ -362,6 +363,7 @@ function RecordsPage() {
                   <th className="px-3 font-medium"><SortHeader label="Contact" sortField="contact" /></th>
                   <th className="px-3 font-medium">Email</th>
                   <th className="px-3 font-medium">Sent via</th>
+                  <th className="px-3 font-medium">Sentiment</th>
                   <th className="px-3 font-medium"><SortHeader label="Stage" sortField="stage" /></th>
                   <th className="px-3 font-medium"><SortHeader label="Priority" sortField="priority" /></th>
                   <th className="px-3 font-medium"><SortHeader label="Value" sortField="estimated_value" /></th>
