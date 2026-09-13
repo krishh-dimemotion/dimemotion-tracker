@@ -127,8 +127,11 @@ function RecordDetailPage() {
   return (
     <AppPage module="crm" title={lead?.company_name ?? "Record"} perm="crm.records" actions={<SavedIndicator saved={saved} />}>
       <div className="flex flex-col gap-4">
+        {lead && <LeadSummaryCard lead={lead} />}
         <HeaderCard record={record} stages={stages ?? []} canEdit={canEdit} onSave={(p) => updateRecord.mutate(p)} />
         <ContactsCard leadId={lead?.id} contacts={lead?.lead_contacts ?? []} canEdit={canEdit} recordId={id} />
+        {lead && <LeadOutreachCard lead={lead} />}
+        {lead && <LeadTasksCard leadId={lead.id} canEdit={canEdit} cardId="crm.todos.card" />}
         <DatesCard record={record} canEdit={canEdit} onSave={(p) => updateRecord.mutate(p)} />
         <ContactLogCard
           recordId={id}
@@ -148,16 +151,16 @@ function RecordDetailPage() {
           />
         </CollapsibleCard>
         {lead && (
-          <CollapsibleCard id="crm.linked-lead" title="Linked lead">
-            <div className="flex items-center justify-between">
-              <div className="text-[13px]">
-                {lead.company_name} <span className="text-muted-foreground">({lead.lead_code})</span>
+          <CollapsibleCard id="crm.lead-notes" title="Lead research and notes" defaultOpen={false}>
+            <div className="flex flex-col gap-3 text-[13px] whitespace-pre-wrap">
+              <div>
+                <div className="label-text mb-1">Research</div>
+                <div className="text-muted-foreground">{lead.research_notes || "Nothing recorded."}</div>
               </div>
-              <Button asChild variant="outline" size="sm">
-                <Link to="/lt/leads/$id" params={{ id: lead.id }}>
-                  Open lead <ExternalLink className="ml-1 size-3.5" />
-                </Link>
-              </Button>
+              <div>
+                <div className="label-text mb-1">Additional notes</div>
+                <div className="text-muted-foreground">{lead.additional_notes || "Nothing recorded."}</div>
+              </div>
             </div>
           </CollapsibleCard>
         )}
