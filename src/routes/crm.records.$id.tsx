@@ -28,6 +28,7 @@ import { useAuth } from "@/lib/auth";
 import { useChannels, useProfiles, useStages } from "@/hooks/useLookups";
 import { fmtDate, fmtDateTime, money, toDateInput } from "@/lib/format";
 import { DEAL_TYPE_LABELS, DIRECTION_LABELS } from "@/components/crm/helpers";
+import { LeadTasksCard } from "@/components/tasks/tasks";
 
 export const Route = createFileRoute("/crm/records/$id")({
   head: () => ({
@@ -166,6 +167,106 @@ function RecordDetailPage() {
         )}
       </div>
     </AppPage>
+  );
+}
+
+function Field({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div>
+      <div className="label-text mb-0.5">{label}</div>
+      <div className="text-[13px]">{value || <span className="text-muted-foreground">-</span>}</div>
+    </div>
+  );
+}
+
+function LinkOut({ href, label }: { href?: string | null; label: string }) {
+  if (!href) return null;
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex items-center gap-1 text-[12px] underline underline-offset-2"
+    >
+      {label} <ExternalLink className="size-3" />
+    </a>
+  );
+}
+
+function LeadSummaryCard({ lead }: { lead: any }) {
+  const sender = lead.sender_accounts;
+  return (
+    <CollapsibleCard
+      id="crm.lead-summary"
+      title="Lead"
+      actions={
+        <Button asChild variant="outline" size="sm">
+          <Link to="/lt/leads/$id" params={{ id: lead.id }} target="_blank">
+            Open in Lead Tracker <ExternalLink className="ml-1 size-3.5" />
+          </Link>
+        </Button>
+      }
+    >
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Field label="Company" value={lead.company_name} />
+        <Field label="Lead code" value={lead.lead_code} />
+        <Field
+          label="Country"
+          value={lead.countries ? `${lead.countries.flag_emoji ?? ""} ${lead.countries.name}`.trim() : ""}
+        />
+        <Field label="Lead stage" value={lead.stages ? <Pill color={lead.stages.color}>{lead.stages.name}</Pill> : ""} />
+        <Field label="Primary contact" value={lead.primary_contact} />
+        <Field label="Reply sentiment" value={lead.reply_sentiment} />
+        <Field label="Contacted via" value={lead.contacted?.name} />
+        <Field label="Reply came in on" value={lead.reply?.name} />
+        <Field
+          label="Sent from"
+          value={sender ? (sender.identifier ? `${sender.label} (${sender.identifier})` : sender.label) : ""}
+        />
+        <Field label="Date added" value={fmtDate(lead.date_added)} />
+        <Field label="Last contacted" value={fmtDateTime(lead.last_contacted_at)} />
+        <Field label="Next follow-up" value={fmtDate(lead.next_followup_date)} />
+      </div>
+      <div className="mt-3 flex flex-wrap gap-3">
+        <LinkOut href={lead.website_url} label="Website" />
+        <LinkOut href={lead.company_linkedin_url} label="LinkedIn" />
+        <LinkOut href={lead.instagram_url} label="Instagram" />
+        <LinkOut href={lead.youtube_url} label="YouTube" />
+        <LinkOut href={lead.loom_url} label="Loom" />
+        {(lead.lead_links ?? []).map((l: any) => (
+          <LinkOut key={l.id} href={l.url} label={l.label || "Link"} />
+        ))}
+      </div>
+    </CollapsibleCard>
+  );
+}
+
+function LeadOutreachCard({ lead }: { lead: any }) {
+  const rows: { label: string; done: boolean; at: string | null }[] = [
+    { label: "Email sent", done: lead.email_sent, at: lead.email_sent_at },
+    { label: "Email viewed", done: lead.email_viewed, at: lead.email_viewed_at },
+    { label: "Email replied", done: lead.email_replied, at: lead.email_replied_at },
+    { label: "LinkedIn connection sent", done: lead.linkedin_connection_sent, at: lead.linkedin_connection_sent_at },
+    { label: "LinkedIn message sent", done: lead.linkedin_sent, at: lead.linkedin_sent_at },
+    { label: "LinkedIn replied", done: lead.linkedin_replied, at: lead.linkedin_replied_at },
+    { label: "Instagram sent", done: lead.instagram_sent, at: lead.instagram_sent_at },
+    { label: "Instagram replied", done: lead.instagram_replied, at: lead.instagram_replied_at },
+    { label: "Loom sent", done: lead.loom_sent, at: lead.loom_sent_at },
+    { label: "Loom watched", done: lead.loom_watched, at: lead.loom_watched_at },
+    { label: "Meeting booked", done: lead.meeting_booked, at: lead.meeting_booked_at },
+    { label: "Client closed", done: lead.client_closed, at: lead.client_closed_at },
+  ];
+  return (
+    <CollapsibleCard id="crm.lead-outreach" title="Outreach so far" defaultOpen={false}>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {rows.map((r) => (
+          <div key={r.label} className="flex items-center justify-between rounded-md border border-border px-3 py-1.5">
+            <span className={r.done ? "text-[13px]" : "text-[13px] text-muted-foreground"}>{r.label}</span>
+            <span className="text-[11px] text-muted-foreground">{r.done ? fmtDate(r.at) || "Yes" : "No"}</span>
+          </div>
+        ))}
+      </div>
+    </CollapsibleCard>
   );
 }
 
