@@ -63,6 +63,7 @@ const CRM_NAV: NavItem[] = [
   { to: "/crm/dashboard", label: "Dashboard", icon: LayoutDashboard, perm: "crm.records" },
   { to: "/crm/records", label: "Records", icon: Table2, perm: "crm.records" },
   { to: "/crm/pipeline", label: "Pipeline", icon: Columns3, perm: "crm.pipeline" },
+  { to: "/crm/todos", label: "To-dos", icon: ListChecks, perm: "crm.todos" },
   { to: "/crm/followups", label: "Follow-ups", icon: CalendarClock, perm: "crm.followups" },
   { to: "/crm/revenue", label: "Revenue", icon: BarChart3, perm: "crm.revenue" },
 ];

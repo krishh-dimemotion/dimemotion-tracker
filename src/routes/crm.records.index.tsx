@@ -128,7 +128,7 @@ function RecordsPage() {
     ],
     queryFn: async () => {
       const sel =
-        "*, leads!inner(id,company_name,lead_code,primary_contact,sender_account_id,contacted_channel_id,sender_accounts(label,identifier),channels(name),lead_contacts(email,linkedin_url,is_primary))";
+        "*, leads!inner(id,company_name,lead_code,primary_contact,reply_sentiment,sender_account_id,contacted_channel_id,sender_accounts(label,identifier),channels:channels!leads_contacted_channel_id_fkey(name),lead_contacts(email,linkedin_url,is_primary))";
       let q = supabase.from("crm_records").select(sel, { count: "exact" });
       q = applyFilters(q);
       const sort = SORT_MAP[sortKey];
