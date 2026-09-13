@@ -11,9 +11,9 @@ Every page subscribes to live database changes, so edits by you or a teammate sh
 
 ## 2. Automatic outreach tracking
 
-- The outreach tracker stops being a manual counter. It counts real activity: each lead you mark as email sent, LinkedIn connection sent, LinkedIn message sent or Instagram message sent counts once for that channel, on that date, for the account used.
+- The outreach tracker counts real activity automatically: each lead you mark as email sent, LinkedIn connection sent, LinkedIn message sent or Instagram message sent counts once for that channel, on that date, for the account used.
 - Numbers are split by sending account, so you can see which inbox or profile did the work.
-- The manual entry box stays as an optional top-up for outreach done outside the app.
+- Manual adjustment stays available on every channel and day: add or subtract any amount (including negative corrections) on top of the automatic count, with the automatic, manual and final totals all shown so you can see what was corrected.
 
 ## 3. Smarter lead stage behaviour
 
