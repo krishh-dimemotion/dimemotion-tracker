@@ -9,9 +9,8 @@ import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { useChannels } from "@/hooks/useLookups";
+import { useChannels, useSenderAccounts } from "@/hooks/useLookups";
 import { addDaysISO, todayISO } from "@/lib/format";
-import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/lt/outreach")({
   head: () => ({
@@ -25,12 +24,6 @@ export const Route = createFileRoute("/lt/outreach")({
   component: OutreachPage,
 });
 
-const CHANNEL_EVENT: Record<string, string> = {
-  email: "email_sent",
-  linkedin: "linkedin_sent",
-  instagram: "instagram_sent",
-};
-
 const HISTORY_DAYS = 30;
 const GRID_DAYS = 84; // 12 weeks x 7 days
 
@@ -43,6 +36,7 @@ function OutreachPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const { data: channels } = useChannels();
+  const { data: senderAccounts } = useSenderAccounts();
   const [manualInputs, setManualInputs] = useState<Record<string, string>>({});
 
   const activeChannels = useMemo(
@@ -74,14 +68,10 @@ function OutreachPage() {
     enabled: !!user?.id,
   });
 
-  const { data: events, isLoading } = useQuery({
-    queryKey: ["outreach-events", rangeStart],
+  const { data: auto, isLoading } = useQuery({
+    queryKey: ["outreach-auto", rangeStart],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("lead_events")
-        .select("event_type,occurred_at,meta")
-        .gte("occurred_at", `${rangeStart}T00:00:00`)
-        .in("event_type", ["email_sent", "linkedin_sent", "instagram_sent", "followup_sent"]);
+      const { data, error } = await supabase.from("outreach_auto").select("*").gte("day", rangeStart);
       if (error) throw error;
       return data ?? [];
     },
@@ -94,25 +84,19 @@ function OutreachPage() {
     return global ? (global.daily_target as number) : 0;
   };
 
-  // day -> channelId -> count from events
-  const eventCounts = useMemo(() => {
+  // day -> channelId -> auto count (all users, since target is a team target)
+  const autoCounts = useMemo(() => {
     const map = new Map<string, Map<string, number>>();
-    for (const e of events ?? []) {
-      const day = String(e.occurred_at).slice(0, 10);
-      let channelId: string | null = null;
-      const kind = (activeChannels.find((c: any) => CHANNEL_EVENT[c.kind] === e.event_type)?.id) ?? null;
-      if (e.event_type === "followup_sent") {
-        channelId = (e.meta as any)?.channel_id ?? null;
-      } else {
-        channelId = kind;
-      }
-      if (!channelId) continue;
+    for (const a of auto ?? []) {
+      const day = a.day as string;
+      const channelId = a.channel_id as string;
+      if (!day || !channelId) continue;
       if (!map.has(day)) map.set(day, new Map());
       const inner = map.get(day)!;
-      inner.set(channelId, (inner.get(channelId) ?? 0) + 1);
+      inner.set(channelId, (inner.get(channelId) ?? 0) + (a.auto_count ?? 0));
     }
     return map;
-  }, [events, activeChannels]);
+  }, [auto]);
 
   const manualCounts = useMemo(() => {
     const map = new Map<string, Map<string, number>>();
@@ -123,11 +107,9 @@ function OutreachPage() {
     return map;
   }, [manual]);
 
-  const countFor = (day: string, channelId: string) => {
-    const auto = eventCounts.get(day)?.get(channelId) ?? 0;
-    const man = manualCounts.get(day)?.get(channelId) ?? 0;
-    return auto + man;
-  };
+  const autoFor = (day: string, channelId: string) => autoCounts.get(day)?.get(channelId) ?? 0;
+  const manualFor = (day: string, channelId: string) => manualCounts.get(day)?.get(channelId) ?? 0;
+  const countFor = (day: string, channelId: string) => autoFor(day, channelId) + manualFor(day, channelId);
 
   const totalFor = (day: string) => activeChannels.reduce((sum: number, c: any) => sum + countFor(day, c.id), 0);
   const combinedTarget = activeChannels.reduce((sum: number, c: any) => sum + targetFor(c.id), 0);
@@ -148,22 +130,49 @@ function OutreachPage() {
     let max = 1;
     for (const d of gridDays) max = Math.max(max, totalFor(d));
     return max;
-  }, [gridDays, eventCounts, manualCounts]);
+  }, [gridDays, autoCounts, manualCounts]);
 
   const hitRateDays = useMemo(() => {
     if (combinedTarget <= 0) return { hit: 0, total: historyDays.length };
     let hit = 0;
     for (const d of historyDays) if (totalFor(d) >= combinedTarget) hit++;
     return { hit, total: historyDays.length };
-  }, [historyDays, eventCounts, manualCounts, combinedTarget]);
+  }, [historyDays, autoCounts, manualCounts, combinedTarget]);
 
-  const saveManual = async (channelId: string) => {
-    if (!user?.id) return;
-    const raw = manualInputs[channelId];
-    const n = Number(raw);
-    if (!raw || Number.isNaN(n) || n < 0) return;
+  // sender-account splits: today and full range, grouped by channel
+  const accountsByChannel = useMemo(() => {
+    const map = new Map<string, any[]>();
+    for (const sa of senderAccounts ?? []) {
+      const cid = (sa as any).channel_id;
+      if (!cid) continue;
+      if (!map.has(cid)) map.set(cid, []);
+      map.get(cid)!.push(sa);
+    }
+    return map;
+  }, [senderAccounts]);
+
+  const senderTodayCounts = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const a of auto ?? []) {
+      if (a.day !== today || !a.sender_account_id) continue;
+      map.set(a.sender_account_id, (map.get(a.sender_account_id) ?? 0) + (a.auto_count ?? 0));
+    }
+    return map;
+  }, [auto, today]);
+
+  const senderRangeCounts = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const a of auto ?? []) {
+      if (!a.sender_account_id) continue;
+      map.set(a.sender_account_id, (map.get(a.sender_account_id) ?? 0) + (a.auto_count ?? 0));
+    }
+    return map;
+  }, [auto]);
+
+  const applyManual = async (channelId: string, delta: number) => {
+    if (!user?.id || !delta) return;
     const existing = (manual ?? []).find((m: any) => m.day === today && m.channel_id === channelId);
-    const nextCount = (existing?.manual_count ?? 0) + n;
+    const nextCount = (existing?.manual_count ?? 0) + delta;
     const { error } = await supabase
       .from("outreach_daily")
       .upsert(
@@ -174,6 +183,12 @@ function OutreachPage() {
       setManualInputs((s) => ({ ...s, [channelId]: "" }));
       qc.invalidateQueries({ queryKey: ["outreach-daily"] });
     }
+  };
+
+  const inputDelta = (channelId: string) => {
+    const raw = manualInputs[channelId];
+    const n = Number(raw);
+    return raw && !Number.isNaN(n) ? n : 0;
   };
 
   // build weeks: 12 columns x 7 rows, columns are weeks ending at latest day
@@ -193,33 +208,64 @@ function OutreachPage() {
           <>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {activeChannels.map((c: any) => {
-                const sent = countFor(today, c.id);
+                const autoCount = autoFor(today, c.id);
+                const manualCount = manualFor(today, c.id);
+                const total = autoCount + manualCount;
                 const target = targetFor(c.id);
-                const remaining = Math.max(0, target - sent);
-                const progress = target > 0 ? Math.min(100, (sent / target) * 100) : 0;
+                const remaining = Math.max(0, target - total);
+                const progress = target > 0 ? Math.min(100, (total / target) * 100) : 0;
+                const accounts = accountsByChannel.get(c.id) ?? [];
                 return (
                   <Card key={c.id} title={c.name}>
                     <div className="flex items-baseline justify-between">
-                      <div className="metric-number">{sent}</div>
+                      <div className="metric-number">{total}</div>
                       <div className="label-text">/ {target || "-"} today</div>
+                    </div>
+                    <div className="label-text mt-1">
+                      Automatic {autoCount} + Manual {manualCount >= 0 ? `+${manualCount}` : manualCount} = {total}
                     </div>
                     <Progress value={progress} className="mt-2 h-1.5" />
                     <div className="label-text mt-1">
                       {target > 0 ? `${remaining} remaining` : "No target set"}
                     </div>
                     <div className="mt-3 flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => applyManual(c.id, -(inputDelta(c.id) || 1))}
+                      >
+                        -
+                      </Button>
                       <Input
                         type="number"
-                        min={0}
-                        placeholder="Add count"
+                        placeholder="Amount"
                         className="h-8 text-[13px]"
                         value={manualInputs[c.id] ?? ""}
                         onChange={(e) => setManualInputs((s) => ({ ...s, [c.id]: e.target.value }))}
                       />
-                      <Button size="sm" variant="outline" onClick={() => saveManual(c.id)}>
-                        Add
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => applyManual(c.id, inputDelta(c.id) || 1)}
+                      >
+                        +
                       </Button>
                     </div>
+                    {accounts.length > 0 && (
+                      <div className="mt-3 border-t border-border pt-2">
+                        <div className="label-text mb-1">By sender account</div>
+                        <div className="flex flex-col gap-1">
+                          {accounts.map((sa: any) => (
+                            <div key={sa.id} className="flex items-center justify-between text-[13px]">
+                              <span className="truncate">{sa.label}</span>
+                              <span className="tabular-nums text-muted-foreground">
+                                {senderTodayCounts.get(sa.id) ?? 0} today · {senderRangeCounts.get(sa.id) ?? 0} in range
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </Card>
                 );
               })}

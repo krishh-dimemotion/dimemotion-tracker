@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowDown, ArrowUp } from "lucide-react";
+import { ArrowDown, ArrowUp, ExternalLink } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { StagePill, stageById } from "./StagePill";
 import { Pill } from "@/components/kit";
@@ -101,6 +101,16 @@ export function LeadTable({
                     {l.company_name}
                   </Link>
                   <span className="ml-1 text-[11px] text-muted-foreground">{l.lead_code}</span>
+                  <a
+                    href={`/lt/leads/${l.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="ml-1.5 inline-flex align-middle text-muted-foreground hover:text-foreground"
+                    title="Open in new tab"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <ExternalLink className="size-3" />
+                  </a>
                 </td>
                 <td className="px-2 text-muted-foreground">{l.primary_contact || "—"}</td>
                 <td className="px-2 text-muted-foreground">{countryName(l.country_id)}</td>

@@ -141,6 +141,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "crm_contact_log_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "outreach_auto"
+            referencedColumns: ["channel_id"]
+          },
+          {
             foreignKeyName: "crm_contact_log_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
@@ -237,6 +244,44 @@ export type Database = {
             columns: ["stage_id"]
             isOneToOne: false
             referencedRelation: "stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      followup_templates: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          is_default: boolean
+          name: string
+          steps: Json
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_default?: boolean
+          name: string
+          steps?: Json
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_default?: boolean
+          name?: string
+          steps?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "followup_templates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -391,6 +436,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "lead_followups_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "outreach_auto"
+            referencedColumns: ["channel_id"]
+          },
+          {
             foreignKeyName: "lead_followups_lead_id_fkey"
             columns: ["lead_id"]
             isOneToOne: false
@@ -486,6 +538,7 @@ export type Database = {
           client_closed_at: string | null
           company_linkedin_url: string | null
           company_name: string
+          contacted_channel_id: string | null
           country_id: string | null
           created_at: string
           created_by: string | null
@@ -504,6 +557,8 @@ export type Database = {
           instagram_url: string | null
           last_contacted_at: string | null
           lead_code: string
+          linkedin_connection_sent: boolean
+          linkedin_connection_sent_at: string | null
           linkedin_replied: boolean
           linkedin_replied_at: string | null
           linkedin_sent: boolean
@@ -521,6 +576,7 @@ export type Database = {
           priority: string | null
           pushed_to_crm: boolean
           pushed_to_crm_at: string | null
+          reply_channel_id: string | null
           reply_sentiment: string | null
           research_notes: string | null
           sender_account_id: string | null
@@ -539,6 +595,7 @@ export type Database = {
           client_closed_at?: string | null
           company_linkedin_url?: string | null
           company_name: string
+          contacted_channel_id?: string | null
           country_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -557,6 +614,8 @@ export type Database = {
           instagram_url?: string | null
           last_contacted_at?: string | null
           lead_code?: string
+          linkedin_connection_sent?: boolean
+          linkedin_connection_sent_at?: string | null
           linkedin_replied?: boolean
           linkedin_replied_at?: string | null
           linkedin_sent?: boolean
@@ -574,6 +633,7 @@ export type Database = {
           priority?: string | null
           pushed_to_crm?: boolean
           pushed_to_crm_at?: string | null
+          reply_channel_id?: string | null
           reply_sentiment?: string | null
           research_notes?: string | null
           sender_account_id?: string | null
@@ -592,6 +652,7 @@ export type Database = {
           client_closed_at?: string | null
           company_linkedin_url?: string | null
           company_name?: string
+          contacted_channel_id?: string | null
           country_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -610,6 +671,8 @@ export type Database = {
           instagram_url?: string | null
           last_contacted_at?: string | null
           lead_code?: string
+          linkedin_connection_sent?: boolean
+          linkedin_connection_sent_at?: string | null
           linkedin_replied?: boolean
           linkedin_replied_at?: string | null
           linkedin_sent?: boolean
@@ -627,6 +690,7 @@ export type Database = {
           priority?: string | null
           pushed_to_crm?: boolean
           pushed_to_crm_at?: string | null
+          reply_channel_id?: string | null
           reply_sentiment?: string | null
           research_notes?: string | null
           sender_account_id?: string | null
@@ -645,6 +709,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "leads_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "outreach_auto"
+            referencedColumns: ["channel_id"]
+          },
+          {
+            foreignKeyName: "leads_contacted_channel_id_fkey"
+            columns: ["contacted_channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_contacted_channel_id_fkey"
+            columns: ["contacted_channel_id"]
+            isOneToOne: false
+            referencedRelation: "outreach_auto"
+            referencedColumns: ["channel_id"]
+          },
+          {
             foreignKeyName: "leads_country_id_fkey"
             columns: ["country_id"]
             isOneToOne: false
@@ -657,6 +742,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_reply_channel_id_fkey"
+            columns: ["reply_channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_reply_channel_id_fkey"
+            columns: ["reply_channel_id"]
+            isOneToOne: false
+            referencedRelation: "outreach_auto"
+            referencedColumns: ["channel_id"]
           },
           {
             foreignKeyName: "leads_sender_account_id_fkey"
@@ -711,6 +810,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "outreach_daily_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "outreach_auto"
+            referencedColumns: ["channel_id"]
+          },
+          {
             foreignKeyName: "outreach_daily_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
@@ -753,8 +859,53 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "outreach_targets_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "outreach_auto"
+            referencedColumns: ["channel_id"]
+          },
+          {
             foreignKeyName: "outreach_targets_user_id_fkey"
             columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      permission_presets: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          is_builtin: boolean
+          name: string
+          permission_keys: string[]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_builtin?: boolean
+          name: string
+          permission_keys?: string[]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_builtin?: boolean
+          name?: string
+          permission_keys?: string[]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "permission_presets_created_by_fkey"
+            columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -856,6 +1007,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "channels"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sender_accounts_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "outreach_auto"
+            referencedColumns: ["channel_id"]
           },
         ]
       }
@@ -1000,7 +1158,31 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      outreach_auto: {
+        Row: {
+          auto_count: number | null
+          channel_id: string | null
+          day: string | null
+          sender_account_id: string | null
+          user_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_events_created_by_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_sender_account_id_fkey"
+            columns: ["sender_account_id"]
+            isOneToOne: false
+            referencedRelation: "sender_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       can: { Args: { _key: string }; Returns: boolean }

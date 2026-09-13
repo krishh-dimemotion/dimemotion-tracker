@@ -17,7 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useProfiles, useStages } from "@/hooks/useLookups";
 import { money, fmtDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { PRIORITY_COLORS, PRIORITY_LABELS, DEAL_TYPE_LABELS, type CrmRecordRow } from "@/components/crm/helpers";
+import { PRIORITY_COLORS, PRIORITY_LABELS, DEAL_TYPE_LABELS, senderLabel, type CrmRecordRow } from "@/components/crm/helpers";
 
 export const Route = createFileRoute("/crm/records/")({
   head: () => ({
@@ -128,7 +128,7 @@ function RecordsPage() {
     ],
     queryFn: async () => {
       const sel =
-        "*, leads!inner(id,company_name,lead_code,primary_contact,lead_contacts(email,linkedin_url,is_primary))";
+        "*, leads!inner(id,company_name,lead_code,primary_contact,sender_account_id,contacted_channel_id,sender_accounts(label,identifier),channels(name),lead_contacts(email,linkedin_url,is_primary))";
       let q = supabase.from("crm_records").select(sel, { count: "exact" });
       q = applyFilters(q);
       const sort = SORT_MAP[sortKey];
@@ -200,6 +200,7 @@ function RecordsPage() {
         <td className="px-3">{r.leads?.company_name}</td>
         <td className="px-3">{r.leads?.primary_contact}</td>
         <td className="px-3">{primaryEmail(r)}</td>
+        <td className="px-3 text-[12px] text-muted-foreground">{senderLabel(r)}</td>
         <td className="px-3">
           <Pill color={stage?.color}>{stage?.name ?? "-"}</Pill>
         </td>
@@ -232,6 +233,7 @@ function RecordsPage() {
           <Pill color={stage?.color}>{stage?.name ?? "-"}</Pill>
         </div>
         <div className="mt-1 text-[12px] text-muted-foreground">{r.leads?.primary_contact}</div>
+        <div className="mt-0.5 text-[11px] text-muted-foreground">Sent via {senderLabel(r)}</div>
         <div className="mt-2 flex items-center justify-between text-[12px]">
           <span className="flex items-center gap-1.5">
             <Dot color={PRIORITY_COLORS[r.priority]} />
@@ -359,6 +361,7 @@ function RecordsPage() {
                   <th className="px-3 font-medium"><SortHeader label="Company" sortField="company" /></th>
                   <th className="px-3 font-medium"><SortHeader label="Contact" sortField="contact" /></th>
                   <th className="px-3 font-medium">Email</th>
+                  <th className="px-3 font-medium">Sent via</th>
                   <th className="px-3 font-medium"><SortHeader label="Stage" sortField="stage" /></th>
                   <th className="px-3 font-medium"><SortHeader label="Priority" sortField="priority" /></th>
                   <th className="px-3 font-medium"><SortHeader label="Value" sortField="estimated_value" /></th>

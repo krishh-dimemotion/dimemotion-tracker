@@ -44,5 +44,21 @@ export type CrmRecordRow = {
     company_name: string;
     lead_code: string;
     primary_contact: string | null;
+    sender_account_id?: string | null;
+    contacted_channel_id?: string | null;
+    sender_accounts?: { label: string; identifier: string | null } | null;
+    channels?: { name: string } | null;
+    lead_contacts?: { email: string | null; linkedin_url: string | null; is_primary: boolean }[];
   } | null;
 };
+
+export function senderLabel(r: CrmRecordRow) {
+  const leads = r.leads as CrmRecordRow["leads"];
+  const account = leads?.sender_accounts;
+  const channel = leads?.channels;
+  if (!account && !channel) return "-";
+  const parts: string[] = [];
+  if (account) parts.push(account.identifier ? `${account.label} (${account.identifier})` : account.label);
+  if (channel) parts.push(channel.name);
+  return parts.join(" · ") || "-";
+}

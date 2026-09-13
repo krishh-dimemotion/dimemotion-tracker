@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { AppPage } from "@/components/app-shell";
-import { Card, Metric, Pill, EmptyState, Loading } from "@/components/kit";
+import { Card, CollapsibleCard, Metric, Pill, EmptyState, Loading } from "@/components/kit";
 import { supabase } from "@/integrations/supabase/client";
 import { useStages, useChannels } from "@/hooks/useLookups";
 import { pct, fmtDate, todayISO, addDaysISO } from "@/lib/format";
@@ -174,10 +174,10 @@ function DashboardPage() {
           )}
         </Card>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <ReminderCard title="Overdue" tone="negative" leads={overdue} stages={stages} channelName={channelName} />
-          <ReminderCard title="Due today" tone="warning" leads={dueToday} stages={stages} channelName={channelName} />
-          <ReminderCard title="Upcoming (7 days)" tone="neutral" leads={upcoming} stages={stages} channelName={channelName} />
+        <div className="flex flex-col gap-3">
+          <ReminderSection id="dashboard.overdue" title="Overdue" tone="negative" defaultOpen={false} leads={overdue} stages={stages} channelName={channelName} />
+          <ReminderSection id="dashboard.due_today" title="Due today" tone="warning" defaultOpen={false} leads={dueToday} stages={stages} channelName={channelName} />
+          <ReminderSection id="dashboard.upcoming" title="Upcoming (7 days)" tone="neutral" defaultOpen={false} leads={upcoming} stages={stages} channelName={channelName} />
         </div>
 
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
@@ -213,22 +213,31 @@ function OutreachMetric({ p, label, frac }: { p: { text: string; hasData: boolea
   return <Metric label={label} value={p.text} helper={p.hasData ? frac : "no data yet"} />;
 }
 
-function ReminderCard({
+function ReminderSection({
+  id,
   title,
   tone,
+  defaultOpen,
   leads,
   stages,
   channelName,
 }: {
+  id: string;
   title: string;
   tone: "negative" | "warning" | "neutral";
+  defaultOpen: boolean;
   leads: { id: string; company_name: string; stage_id: string | null; channel_id: string | null; next_followup_date: string | null }[];
   stages: ReturnType<typeof useStages>["data"];
   channelName: (id: string | null) => string;
 }) {
   const toneClass = tone === "negative" ? "text-negative" : tone === "warning" ? "text-warning" : "text-foreground";
   return (
-    <Card title={title} actions={<span className={cn("text-[15px] font-semibold", toneClass)}>{leads.length}</span>}>
+    <CollapsibleCard
+      id={id}
+      title={title}
+      defaultOpen={defaultOpen}
+      actions={<span className={cn("text-[15px] font-semibold", toneClass)}>{leads.length}</span>}
+    >
       <div className="flex max-h-72 flex-col gap-1 overflow-y-auto">
         {leads.length === 0 && <div className="label-text py-4 text-center">Nothing here</div>}
         {leads.map((l) => (
@@ -247,6 +256,6 @@ function ReminderCard({
           </Link>
         ))}
       </div>
-    </Card>
+    </CollapsibleCard>
   );
 }

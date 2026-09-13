@@ -43,6 +43,7 @@ import {
 import { DEFAULT_SHORTCUTS, isTypingTarget } from "@/lib/shortcuts";
 import { supabase } from "@/integrations/supabase/client";
 import { Loading } from "@/components/kit";
+import { useGlobalRealtime } from "@/hooks/useRealtime";
 
 export type ModuleKey = "lead" | "crm";
 
@@ -51,6 +52,7 @@ type NavItem = { to: string; label: string; icon: typeof Gauge; perm: string };
 const LEAD_NAV: NavItem[] = [
   { to: "/lt/dashboard", label: "Dashboard", icon: LayoutDashboard, perm: "lead.dashboard" },
   { to: "/lt/leads", label: "Leads", icon: Table2, perm: "lead.leads" },
+  { to: "/lt/followups", label: "Follow-ups", icon: CalendarClock, perm: "lead.leads" },
   { to: "/lt/outreach", label: "Outreach Tracker", icon: Gauge, perm: "lead.outreach_tracker" },
   { to: "/lt/ledger", label: "Ledger", icon: ListChecks, perm: "lead.ledger" },
   { to: "/lt/archive", label: "Archive", icon: Boxes, perm: "lead.archive" },
@@ -58,6 +60,7 @@ const LEAD_NAV: NavItem[] = [
 ];
 
 const CRM_NAV: NavItem[] = [
+  { to: "/crm/dashboard", label: "Dashboard", icon: LayoutDashboard, perm: "crm.records" },
   { to: "/crm/records", label: "Records", icon: Table2, perm: "crm.records" },
   { to: "/crm/pipeline", label: "Pipeline", icon: Columns3, perm: "crm.pipeline" },
   { to: "/crm/followups", label: "Follow-ups", icon: CalendarClock, perm: "crm.followups" },
@@ -240,6 +243,7 @@ export function AppPage({
   children: ReactNode;
 }) {
   const { loading, session, profile, can, theme, setTheme, signOut } = useAuth();
+  useGlobalRealtime();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [collapsed, setCollapsed] = useState(false);

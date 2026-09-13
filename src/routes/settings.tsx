@@ -10,7 +10,9 @@ import { TargetsCard } from "@/components/settings/TargetsCard";
 import { ShortcutsCard } from "@/components/settings/ShortcutsCard";
 import { AccountCard } from "@/components/settings/AccountCard";
 import { UsersCard } from "@/components/settings/UsersCard";
+import { PresetsCard } from "@/components/settings/PresetsCard";
 import { DataCard } from "@/components/settings/DataCard";
+import { FollowupTemplatesCard } from "@/components/settings/FollowupTemplatesCard";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -68,6 +70,12 @@ function SettingsPage() {
           </CollapsibleCard>
         )}
 
+        {can("lead.leads") && (
+          <CollapsibleCard id="settings.followup_templates" title="Follow-up templates" defaultOpen={false}>
+            <FollowupTemplatesCard />
+          </CollapsibleCard>
+        )}
+
         {can("settings.shortcuts") && (
           <CollapsibleCard id="settings.shortcuts" title="Keyboard shortcuts" defaultOpen={false}>
             <ShortcutsCard />
@@ -77,6 +85,12 @@ function SettingsPage() {
         {isAdmin && (
           <CollapsibleCard id="settings.users" title="Users and access" defaultOpen={false}>
             <UsersCard />
+          </CollapsibleCard>
+        )}
+
+        {isAdmin && (
+          <CollapsibleCard id="settings.presets" title="Access presets" defaultOpen={false}>
+            <PresetsCard />
           </CollapsibleCard>
         )}
 

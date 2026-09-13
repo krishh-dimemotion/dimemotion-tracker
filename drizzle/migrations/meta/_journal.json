@@ -22,6 +22,13 @@
       "when": 1789167726887,
       "tag": "0002_buzzspear_triggers",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789321620769,
+      "tag": "0003_tracker_automation_presets_templates",
+      "breakpoints": true
     }
   ]
 }
