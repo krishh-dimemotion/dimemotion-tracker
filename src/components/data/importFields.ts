@@ -169,6 +169,8 @@ function followupFields(): FieldDef[] {
         `${ord} fup date`,
         `${ord} follow up date`,
         `follow up ${n} date`,
+        `${ord} days`,
+        `${ord} fup`,
         `${ord}`,
       ],
     });
