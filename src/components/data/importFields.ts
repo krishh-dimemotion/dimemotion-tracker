@@ -240,8 +240,14 @@ export function normalizeHeader(raw: string): string {
     .replace(/[^a-z0-9%+ ]/gi, " ")
     .replace(/\s+/g, " ")
     .trim()
-    .toLowerCase();
+    .toLowerCase()
+    .replace(/\+\s*\d+\s*days?/g, "days")
+    .replace(/\byes\s+no\b|\bno\s+yes\b|\by\s+n\b/g, "")
+    .replace(/\btype\s+0\s+100\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
+
 
 const ORDINAL_WORDS: Record<string, number> = {
   "1st": 1, first: 1, "2nd": 2, second: 2, "3rd": 3, third: 3, "4th": 4, fourth: 4,
