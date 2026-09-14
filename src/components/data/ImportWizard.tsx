@@ -371,7 +371,7 @@ export function ImportWizard() {
 
         for (const entry of updates) {
           const current = entry.dup.existing as Record<string, unknown>;
-          const leadId = current.id as string;
+          const leadId = current["id"] as string;
           try {
             const patch = dupAction === "merge" ? mergePayload(entry.row.lead, current) : entry.row.lead;
             if (Object.keys(patch).length > 0) {
