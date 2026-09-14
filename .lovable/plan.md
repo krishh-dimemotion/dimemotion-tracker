@@ -2,6 +2,9 @@
 
 Today the importer only knows 22 lead fields, matches a column only when the heading is an exact match, and ignores everything else. That is why most of your sheet shows "Ignore" and why tick-box columns like "Loom Sent?" and "Email Viewed?" never land anywhere. The fix is a bigger field list, smarter matching, value translation, and saved mappings.
 
+I checked the file you sent: 36 columns, 100 rows. Two things stand out and are handled below. It has no company name column at all (it starts at "instagram" and the company columns were cut off in the export), so today every row would be rejected. And its headings run over three lines inside one cell ("Loom / Sent? / (Yes/No)"), which the current matcher cannot read.
+
+
 ## 1. Accept CSV and Excel
 
 - Upload .csv, .xlsx or .xls. For Excel files with several tabs, pick the tab to import.
