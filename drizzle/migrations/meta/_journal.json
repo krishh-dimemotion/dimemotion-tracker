@@ -36,6 +36,13 @@
       "when": 1789323146398,
       "tag": "0004_lead_tasks_and_positive_only_crm_push",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789373630925,
+      "tag": "0005_create_import_mappings",
+      "breakpoints": true
     }
   ]
 }

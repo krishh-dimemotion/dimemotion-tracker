@@ -13,6 +13,7 @@ import { UsersCard } from "@/components/settings/UsersCard";
 import { PresetsCard } from "@/components/settings/PresetsCard";
 import { DataCard } from "@/components/settings/DataCard";
 import { FollowupTemplatesCard } from "@/components/settings/FollowupTemplatesCard";
+import { ImportMappingsCard } from "@/components/settings/ImportMappingsCard";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -97,6 +98,12 @@ function SettingsPage() {
         {(can("lead.import_export") || isAdmin) && (
           <CollapsibleCard id="settings.data" title="Data" defaultOpen={false}>
             <DataCard />
+          </CollapsibleCard>
+        )}
+
+        {(can("lead.import_export") || isAdmin) && (
+          <CollapsibleCard id="settings.import_mappings" title="Saved import mappings" defaultOpen={false}>
+            <ImportMappingsCard />
           </CollapsibleCard>
         )}
       </div>
