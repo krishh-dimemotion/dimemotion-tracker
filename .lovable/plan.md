@@ -61,7 +61,18 @@ A toggle on the mapping step: keep leftover columns in the lead's additional not
 - Import runs in batches instead of one row at a time, with a progress bar, so 100 to 5000 rows finish quickly.
 - The result step lists failures with the row number and the reason, and offers a download of only the failed rows as a CSV so you can fix and re-upload just those.
 
+## 8. Your Shourya sheet specifically
+
+- Multi-line headings are flattened to one line before matching, so "Loom / Sent? / (Yes/No)" reads as "Loom sent".
+- "Email Status" values Sent, +Reply, -Reply, Positive Reply, Negative Reply fill email sent, replied and sentiment in one go.
+- "FUP 1 to 7 Status" plus the matching date columns ("1st FUP Date", "2nd (+2 days)", and so on) become the lead's follow-up steps with sequence numbers.
+- "LinkedIn Omni" and "IG Omni" map to LinkedIn message sent and Instagram message sent.
+- "Prospect Email 1 to 8" become person 1 to 8 on the lead.
+- No company name column: instead of failing every row, the importer tells you up front which required field is missing and lets you either pick another column as the lead name, type a fallback name pattern, or fall back to the first email address. Re-exporting the sheet with the company column included stays the cleanest option, and the importer will say so.
+- Rows that are entirely blank are skipped rather than counted as failures.
+
 ## Technical notes
+
 
 - `importFields.ts` becomes a field catalogue: key, label, group, target table (`leads`, `lead_contacts`, `lead_links`, `lead_followups`, `lead_tags`), value type (text, bool, date, percent, enum, list, lookup) and synonym list. Person and follow-up fields are generated for indices 1 to 8.
 - New `parseValue(type, raw)` module holds the boolean/date/percent/list/enum coercion with unit tests.
