@@ -106,6 +106,13 @@ function SettingsPage() {
             <ImportMappingsCard />
           </CollapsibleCard>
         )}
+
+        {(can("lead.import_export") || isAdmin) && (
+          <CollapsibleCard id="settings.google_sheet" title="Google Sheet backup" defaultOpen={false}>
+            <GoogleSheetCard />
+          </CollapsibleCard>
+        )}
+
       </div>
     </AppPage>
   );
