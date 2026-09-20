@@ -14,6 +14,8 @@ import { PresetsCard } from "@/components/settings/PresetsCard";
 import { DataCard } from "@/components/settings/DataCard";
 import { FollowupTemplatesCard } from "@/components/settings/FollowupTemplatesCard";
 import { ImportMappingsCard } from "@/components/settings/ImportMappingsCard";
+import { GoogleSheetCard } from "@/components/settings/GoogleSheetCard";
+
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
