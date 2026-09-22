@@ -122,12 +122,6 @@ function RecordDetailPage() {
         {lead && <LeadOutreachCard lead={lead} />}
         {lead && <LeadTasksCard leadId={lead.id} canEdit={canEdit} cardId="crm.todos.card" />}
         <DatesCard record={record} canEdit={canEdit} onSave={(p) => updateRecord.mutate(p)} />
-        <ContactLogCard
-          recordId={id}
-          logs={contactLogQuery.data ?? []}
-          channels={channels ?? []}
-          canEdit={canEdit}
-        />
         <CollapsibleCard id="crm.notes" title="Notes">
           <Textarea
             defaultValue={record.notes ?? ""}
