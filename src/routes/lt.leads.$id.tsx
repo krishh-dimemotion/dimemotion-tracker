@@ -157,7 +157,7 @@ function LeadDetailPage() {
     },
   });
 
-  // Ensure two contacts exist by default.
+  // Ensure a single contact exists by default.
   useEffect(() => {
     const lead = leadQuery.data;
     if (!lead) return;
@@ -165,17 +165,7 @@ function LeadDetailPage() {
     if (contacts.length === 0 && canEdit) {
       void supabase
         .from("lead_contacts")
-        .insert([
-          { lead_id: id, order_index: 0, is_primary: true } as never,
-          { lead_id: id, order_index: 1, is_primary: false } as never,
-        ])
-        .then(({ error }) => {
-          if (!error) invalidate();
-        });
-    } else if (contacts.length === 1 && canEdit) {
-      void supabase
-        .from("lead_contacts")
-        .insert({ lead_id: id, order_index: 1, is_primary: false } as never)
+        .insert({ lead_id: id, order_index: 0, is_primary: true } as never)
         .then(({ error }) => {
           if (!error) invalidate();
         });
