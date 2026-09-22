@@ -1226,7 +1226,107 @@ function OtherChannelsCard({
           <div className="label-text mt-1">{MANUAL_HELPER}</div>
         </div>
       </div>
+
+      <ReplyDialog
+        open={replyDialogOpen}
+        channels={channels}
+        onCancel={() => setReplyDialogOpen(false)}
+        onConfirm={(patch) => {
+          setReplyDialogOpen(false);
+          onSave(patch);
+        }}
+      />
     </CollapsibleCard>
+  );
+}
+
+function ReplyDialog({
+  open,
+  channels,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean;
+  channels: any[];
+  onCancel: () => void;
+  onConfirm: (patch: Record<string, unknown>) => void;
+}) {
+  const [platform, setPlatform] = useState<"email" | "linkedin" | "instagram">("email");
+  const [viewedDate, setViewedDate] = useState("");
+  const [repliedDate, setRepliedDate] = useState(toDateInput(new Date().toISOString()));
+
+  useEffect(() => {
+    if (open) {
+      setPlatform("email");
+      setViewedDate("");
+      setRepliedDate(toDateInput(new Date().toISOString()));
+    }
+  }, [open]);
+
+  const submit = () => {
+    const repliedAt = repliedDate ? new Date(repliedDate + "T12:00:00").toISOString() : new Date().toISOString();
+    const viewedAt = viewedDate ? new Date(viewedDate + "T12:00:00").toISOString() : repliedAt;
+    const channel = channels.find((c) => c.kind === platform);
+    const patch: Record<string, unknown> = {
+      reply_sentiment: undefined,
+      last_contacted_at: repliedAt,
+    };
+    delete patch.reply_sentiment;
+    if (channel) patch.reply_channel_id = channel.id;
+    if (platform === "email") {
+      patch.email_viewed = true;
+      patch.email_viewed_at = viewedAt;
+      patch.email_replied = true;
+      patch.email_replied_at = repliedAt;
+    } else if (platform === "linkedin") {
+      patch.linkedin_replied = true;
+      patch.linkedin_replied_at = repliedAt;
+    } else {
+      patch.instagram_replied = true;
+      patch.instagram_replied_at = repliedAt;
+    }
+    onConfirm(patch);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onCancel()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>They replied</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-3">
+          <div>
+            <div className="label-text mb-1">Where did they reply</div>
+            <Select value={platform} onValueChange={(v) => setPlatform(v as typeof platform)}>
+              <SelectTrigger className="h-8 text-[13px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="email">Email</SelectItem>
+                <SelectItem value="linkedin">LinkedIn</SelectItem>
+                <SelectItem value="instagram">Instagram</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {platform === "email" && (
+            <div>
+              <div className="label-text mb-1">When did they view the email</div>
+              <Input type="date" className="h-8 text-[13px]" value={viewedDate} onChange={(e) => setViewedDate(e.target.value)} />
+            </div>
+          )}
+          <div>
+            <div className="label-text mb-1">When did they reply</div>
+            <Input type="date" className="h-8 text-[13px]" value={repliedDate} onChange={(e) => setRepliedDate(e.target.value)} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button onClick={submit}>Save reply</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
