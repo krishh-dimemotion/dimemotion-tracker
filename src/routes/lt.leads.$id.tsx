@@ -462,7 +462,15 @@ function HeaderCard({
             <span className="text-[12px] text-muted-foreground">{lead.lead_code}</span>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Select value={lead.stage_id ?? undefined} disabled={!canEdit} onValueChange={(v) => onSave({ stage_id: v })}>
+            <Select
+              value={lead.stage_id ?? undefined}
+              disabled={!canEdit}
+              onValueChange={(v) => {
+                const stage = stages.find((s) => s.id === v);
+                if (stage?.is_won) setWonTarget({ stage_id: v });
+                else onSave({ stage_id: v });
+              }}
+            >
               <SelectTrigger className="h-8 w-[150px] text-[13px]">
                 <SelectValue placeholder="Stage" />
               </SelectTrigger>
@@ -474,7 +482,14 @@ function HeaderCard({
                 ))}
               </SelectContent>
             </Select>
-            <Select value={lead.status} disabled={!canEdit} onValueChange={(v) => onSave({ status: v })}>
+            <Select
+              value={lead.status}
+              disabled={!canEdit}
+              onValueChange={(v) => {
+                if (v === "won") setWonTarget({ status: "won" });
+                else onSave({ status: v });
+              }}
+            >
               <SelectTrigger className="h-8 w-[150px] text-[13px]">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
