@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -43,6 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [theme, setThemeState] = useState<"light" | "dark">("light");
   const [themeInitialized, setThemeInitialized] = useState(false);
+  const themeResolved = useRef(false);
 
   const load = async (uid: string | undefined) => {
     if (!uid) {
@@ -57,8 +58,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile((p as Profile) ?? null);
     setPermissions((perms ?? []).filter((r) => r.enabled).map((r) => r.permission_key));
 
-    // The device's saved choice always wins. Only fall back to the stored
-    // profile theme when this browser has no preference yet.
+    // Resolve the theme once, on the first profile load. After that the
+    // theme only changes through setTheme (or another tab via the storage
+    // event), so profile refreshes (e.g. saving settings) can never flip it.
+    if (themeResolved.current) return;
+    themeResolved.current = true;
     const local = window.localStorage.getItem(THEME_STORAGE_KEY);
     const remote = (p as Profile | null)?.theme === "dark" ? "dark" : "light";
     if (isTheme(local)) {
