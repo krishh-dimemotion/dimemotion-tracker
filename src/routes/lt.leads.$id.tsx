@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
@@ -349,7 +350,7 @@ function LeadDetailPage() {
                 });
             }}
           />
-          <LeadTasksCard leadId={id} canEdit={canEdit} />
+          {lead.pushed_to_crm && <LeadTasksCard leadId={id} canEdit={canEdit} />}
           <NotesCard lead={lead} canEdit={canEdit} onSave={(p) => updateLead.mutate(p)} />
           <EmailCard lead={lead} canEdit={canEdit} onSave={(p) => updateLead.mutate(p)} />
           <LoomCard lead={lead} canEdit={canEdit} onSave={(p) => updateLead.mutate(p)} />
