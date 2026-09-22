@@ -540,7 +540,119 @@ function HeaderCard({
           <div>Last activity {fmtDate(lastActivity)}</div>
         </div>
       </div>
+
+      <WonDialog
+        open={!!wonTarget}
+        leadId={lead.id}
+        onCancel={() => setWonTarget(null)}
+        onConfirm={(details) => {
+          const target = wonTarget ?? {};
+          setWonTarget(null);
+          onSave({
+            ...target,
+            status: "won",
+            meeting_booked: true,
+            meeting_booked_at: details.callBookedAt ?? new Date().toISOString(),
+            client_closed: true,
+            client_closed_at: details.closedAt ?? new Date().toISOString(),
+          });
+        }}
+      />
     </div>
+  );
+}
+
+function WonDialog({
+  open,
+  leadId,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean;
+  leadId: string;
+  onCancel: () => void;
+  onConfirm: (details: { callBookedAt: string | null; closedAt: string | null }) => void;
+}) {
+  const [callBooked, setCallBooked] = useState("");
+  const [closeDate, setCloseDate] = useState(toDateInput(new Date().toISOString()));
+  const [value, setValue] = useState("");
+  const [mrr, setMrr] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setCallBooked("");
+      setCloseDate(toDateInput(new Date().toISOString()));
+      setValue("");
+      setMrr("");
+    }
+  }, [open]);
+
+  const submit = async () => {
+    setSaving(true);
+    const closedAt = closeDate ? new Date(closeDate + "T12:00:00").toISOString() : null;
+    try {
+      const { error: rpcError } = await supabase.rpc("ensure_crm_record", { _lead_id: leadId });
+      if (rpcError) throw rpcError;
+      const { data: rec } = await supabase.from("crm_records").select("id").eq("lead_id", leadId).maybeSingle();
+      if (rec?.id) {
+        const patch: Record<string, unknown> = {};
+        if (value.trim() !== "" && !Number.isNaN(Number(value))) patch.estimated_value = Number(value);
+        if (mrr.trim() !== "" && !Number.isNaN(Number(mrr))) {
+          patch.mrr_amount = Number(mrr);
+          patch.deal_type = "retainer";
+        }
+        if (closedAt) patch.closed_at = closedAt;
+        if (Object.keys(patch).length > 0) {
+          const { error } = await supabase.from("crm_records").update(patch as never).eq("id", rec.id);
+          if (error) throw error;
+        }
+      }
+    } catch (e: any) {
+      toast.error(e?.message ?? "Failed to save deal details");
+    } finally {
+      setSaving(false);
+    }
+    onConfirm({
+      callBookedAt: callBooked ? new Date(callBooked + "T12:00:00").toISOString() : null,
+      closedAt,
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onCancel()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Closing this deal</DialogTitle>
+        </DialogHeader>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <div className="label-text mb-1">When was the call booked</div>
+            <Input type="date" className="h-8 text-[13px]" value={callBooked} onChange={(e) => setCallBooked(e.target.value)} />
+          </div>
+          <div>
+            <div className="label-text mb-1">Closing date</div>
+            <Input type="date" className="h-8 text-[13px]" value={closeDate} onChange={(e) => setCloseDate(e.target.value)} />
+          </div>
+          <div>
+            <div className="label-text mb-1">Deal value</div>
+            <Input type="number" className="h-8 text-[13px]" value={value} onChange={(e) => setValue(e.target.value)} />
+          </div>
+          <div>
+            <div className="label-text mb-1">Monthly amount (MRR)</div>
+            <Input type="number" className="h-8 text-[13px]" value={mrr} onChange={(e) => setMrr(e.target.value)} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel} disabled={saving}>
+            Cancel
+          </Button>
+          <Button onClick={submit} disabled={saving}>
+            Save and close deal
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
