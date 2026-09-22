@@ -56,10 +56,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     ]);
     setProfile((p as Profile) ?? null);
     setPermissions((perms ?? []).filter((r) => r.enabled).map((r) => r.permission_key));
-    const t = (p as Profile | null)?.theme === "dark" ? "dark" : "light";
-    setThemeState(t);
-    window.localStorage.setItem(THEME_STORAGE_KEY, t);
+
+    // The device's saved choice always wins. Only fall back to the stored
+    // profile theme when this browser has no preference yet.
+    const local = window.localStorage.getItem(THEME_STORAGE_KEY);
+    const remote = (p as Profile | null)?.theme === "dark" ? "dark" : "light";
+    if (isTheme(local)) {
+      setThemeState(local);
+      if (p && remote !== local) {
+        void supabase.from("profiles").update({ theme: local } as never).eq("id", uid);
+      }
+    } else {
+      setThemeState(remote);
+      window.localStorage.setItem(THEME_STORAGE_KEY, remote);
+    }
   };
+
 
   useEffect(() => {
     const savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
