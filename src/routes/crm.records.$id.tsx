@@ -15,28 +15,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { useChannels, useProfiles, useStages } from "@/hooks/useLookups";
+import { useProfiles, useStages } from "@/hooks/useLookups";
 import { fmtDate, fmtDateTime, money, toDateInput } from "@/lib/format";
-import { DEAL_TYPE_LABELS, DIRECTION_LABELS } from "@/components/crm/helpers";
+import { DEAL_TYPE_LABELS } from "@/components/crm/helpers";
 import { LeadTasksCard } from "@/components/tasks/tasks";
 
 export const Route = createFileRoute("/crm/records/$id")({
   head: () => ({
     meta: [
       { title: "Record — CRM — Buzzspear Tracker" },
-      { name: "description", content: "CRM record detail: stage, contacts, dates, contact log." },
+      { name: "description", content: "CRM record detail: stage, contacts, dates and deal information." },
       { property: "og:title", content: "Record — CRM — Buzzspear Tracker" },
-      { property: "og:description", content: "CRM record detail: stage, contacts, dates, contact log." },
+      { property: "og:description", content: "CRM record detail: stage, contacts, dates and deal information." },
     ],
   }),
   component: RecordDetailPage,
@@ -58,7 +50,6 @@ function RecordDetailPage() {
   const qc = useQueryClient();
   const { data: stages } = useStages("crm");
   const { data: profiles } = useProfiles();
-  const { data: channels } = useChannels();
 
   const recordQuery = useQuery({
     queryKey: ["crm_record", id],
@@ -75,18 +66,6 @@ function RecordDetailPage() {
     },
   });
 
-  const contactLogQuery = useQuery({
-    queryKey: ["crm_contact_log", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("crm_contact_log")
-        .select("*, channels(name), profiles!crm_contact_log_created_by_fkey(full_name,email)")
-        .eq("crm_record_id", id)
-        .order("contacted_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
 
   const record = recordQuery.data as any;
   const lead = record?.leads;
@@ -134,12 +113,6 @@ function RecordDetailPage() {
         {lead && <LeadOutreachCard lead={lead} />}
         {lead && <LeadTasksCard leadId={lead.id} canEdit={canEdit} cardId="crm.todos.card" />}
         <DatesCard record={record} canEdit={canEdit} onSave={(p) => updateRecord.mutate(p)} />
-        <ContactLogCard
-          recordId={id}
-          logs={contactLogQuery.data ?? []}
-          channels={channels ?? []}
-          canEdit={canEdit}
-        />
         <CollapsibleCard id="crm.notes" title="Notes">
           <Textarea
             defaultValue={record.notes ?? ""}
@@ -605,132 +578,6 @@ function DatesCard({
           </div>
         ))}
       </div>
-    </CollapsibleCard>
-  );
-}
-
-function ContactLogCard({
-  recordId,
-  logs,
-  channels,
-  canEdit,
-}: {
-  recordId: string;
-  logs: any[];
-  channels: any[];
-  canEdit: boolean;
-}) {
-  const qc = useQueryClient();
-  const [open, setOpen] = useState(false);
-  const [date, setDate] = useState(toDateInput(new Date().toISOString()));
-  const [channelId, setChannelId] = useState<string>("");
-  const [direction, setDirection] = useState("outbound");
-  const [summary, setSummary] = useState("");
-
-  const logMutation = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase.from("crm_contact_log").insert({
-        crm_record_id: recordId,
-        contacted_at: new Date(date + "T12:00:00").toISOString(),
-        channel_id: channelId || null,
-        direction,
-        summary: summary || null,
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Contact logged");
-      setOpen(false);
-      setSummary("");
-      qc.invalidateQueries({ queryKey: ["crm_contact_log", recordId] });
-      qc.invalidateQueries({ queryKey: ["crm_record", recordId] });
-    },
-    onError: (e: any) => toast.error(e.message ?? "Failed to log contact"),
-  });
-
-  return (
-    <CollapsibleCard
-      id="crm.contact-log"
-      title="Contact log"
-      actions={
-        canEdit && (
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm" variant="outline">
-                Log contact
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Log contact</DialogTitle>
-              </DialogHeader>
-              <div className="flex flex-col gap-3">
-                <div>
-                  <div className="label-text mb-1">Date</div>
-                  <Input type="date" className="h-8 text-[13px]" value={date} onChange={(e) => setDate(e.target.value)} />
-                </div>
-                <div>
-                  <div className="label-text mb-1">Channel</div>
-                  <Select value={channelId} onValueChange={setChannelId}>
-                    <SelectTrigger className="h-8 text-[13px]">
-                      <SelectValue placeholder="Channel" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {channels.map((c: any) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <div className="label-text mb-1">Direction</div>
-                  <Select value={direction} onValueChange={setDirection}>
-                    <SelectTrigger className="h-8 text-[13px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="outbound">Outbound</SelectItem>
-                      <SelectItem value="inbound">Inbound</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <div className="label-text mb-1">Summary</div>
-                  <Textarea value={summary} onChange={(e) => setSummary(e.target.value)} className="text-[13px]" />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button onClick={() => logMutation.mutate()} disabled={logMutation.isPending}>
-                  Save
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        )
-      }
-    >
-      {logs.length === 0 ? (
-        <div className="text-[13px] text-muted-foreground">No contact logged yet.</div>
-      ) : (
-        <div className="flex flex-col divide-y divide-border">
-          {logs.map((l: any) => (
-            <div key={l.id} className="flex items-center justify-between gap-2 py-2 text-[13px]">
-              <div>
-                <span className="font-medium">{fmtDateTime(l.contacted_at)}</span>
-                <span className="ml-2 text-muted-foreground">
-                  {l.channels?.name ?? "-"} • {DIRECTION_LABELS[l.direction] ?? l.direction}
-                </span>
-                {l.summary && <div className="text-muted-foreground">{l.summary}</div>}
-              </div>
-              <div className="shrink-0 text-[11px] text-muted-foreground">
-                {l.profiles?.full_name || l.profiles?.email}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
     </CollapsibleCard>
   );
 }

@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
@@ -157,7 +158,7 @@ function LeadDetailPage() {
     },
   });
 
-  // Ensure two contacts exist by default.
+  // Ensure a single contact exists by default.
   useEffect(() => {
     const lead = leadQuery.data;
     if (!lead) return;
@@ -165,17 +166,7 @@ function LeadDetailPage() {
     if (contacts.length === 0 && canEdit) {
       void supabase
         .from("lead_contacts")
-        .insert([
-          { lead_id: id, order_index: 0, is_primary: true } as never,
-          { lead_id: id, order_index: 1, is_primary: false } as never,
-        ])
-        .then(({ error }) => {
-          if (!error) invalidate();
-        });
-    } else if (contacts.length === 1 && canEdit) {
-      void supabase
-        .from("lead_contacts")
-        .insert({ lead_id: id, order_index: 1, is_primary: false } as never)
+        .insert({ lead_id: id, order_index: 0, is_primary: true } as never)
         .then(({ error }) => {
           if (!error) invalidate();
         });
@@ -359,7 +350,7 @@ function LeadDetailPage() {
                 });
             }}
           />
-          <LeadTasksCard leadId={id} canEdit={canEdit} />
+          {lead.pushed_to_crm && <LeadTasksCard leadId={id} canEdit={canEdit} />}
           <NotesCard lead={lead} canEdit={canEdit} onSave={(p) => updateLead.mutate(p)} />
           <EmailCard lead={lead} canEdit={canEdit} onSave={(p) => updateLead.mutate(p)} />
           <LoomCard lead={lead} canEdit={canEdit} onSave={(p) => updateLead.mutate(p)} />
@@ -436,6 +427,7 @@ function HeaderCard({
   companyNameRef: React.RefObject<HTMLInputElement | null>;
 }) {
   const [name, setName] = useState(lead.company_name ?? "");
+  const [wonTarget, setWonTarget] = useState<{ stage_id?: string; status?: string } | null>(null);
   useEffect(() => setName(lead.company_name ?? ""), [lead.id]);
 
   const lastActivity =
@@ -471,7 +463,15 @@ function HeaderCard({
             <span className="text-[12px] text-muted-foreground">{lead.lead_code}</span>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Select value={lead.stage_id ?? undefined} disabled={!canEdit} onValueChange={(v) => onSave({ stage_id: v })}>
+            <Select
+              value={lead.stage_id ?? undefined}
+              disabled={!canEdit}
+              onValueChange={(v) => {
+                const stage = stages.find((s) => s.id === v);
+                if (stage?.is_won) setWonTarget({ stage_id: v });
+                else onSave({ stage_id: v });
+              }}
+            >
               <SelectTrigger className="h-8 w-[150px] text-[13px]">
                 <SelectValue placeholder="Stage" />
               </SelectTrigger>
@@ -483,7 +483,14 @@ function HeaderCard({
                 ))}
               </SelectContent>
             </Select>
-            <Select value={lead.status} disabled={!canEdit} onValueChange={(v) => onSave({ status: v })}>
+            <Select
+              value={lead.status}
+              disabled={!canEdit}
+              onValueChange={(v) => {
+                if (v === "won") setWonTarget({ status: "won" });
+                else onSave({ status: v });
+              }}
+            >
               <SelectTrigger className="h-8 w-[150px] text-[13px]">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
@@ -533,7 +540,119 @@ function HeaderCard({
           <div>Last activity {fmtDate(lastActivity)}</div>
         </div>
       </div>
+
+      <WonDialog
+        open={!!wonTarget}
+        leadId={lead.id}
+        onCancel={() => setWonTarget(null)}
+        onConfirm={(details) => {
+          const target = wonTarget ?? {};
+          setWonTarget(null);
+          onSave({
+            ...target,
+            status: "won",
+            meeting_booked: true,
+            meeting_booked_at: details.callBookedAt ?? new Date().toISOString(),
+            client_closed: true,
+            client_closed_at: details.closedAt ?? new Date().toISOString(),
+          });
+        }}
+      />
     </div>
+  );
+}
+
+function WonDialog({
+  open,
+  leadId,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean;
+  leadId: string;
+  onCancel: () => void;
+  onConfirm: (details: { callBookedAt: string | null; closedAt: string | null }) => void;
+}) {
+  const [callBooked, setCallBooked] = useState("");
+  const [closeDate, setCloseDate] = useState(toDateInput(new Date().toISOString()));
+  const [value, setValue] = useState("");
+  const [mrr, setMrr] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setCallBooked("");
+      setCloseDate(toDateInput(new Date().toISOString()));
+      setValue("");
+      setMrr("");
+    }
+  }, [open]);
+
+  const submit = async () => {
+    setSaving(true);
+    const closedAt = closeDate ? new Date(closeDate + "T12:00:00").toISOString() : null;
+    try {
+      const { error: rpcError } = await supabase.rpc("ensure_crm_record", { _lead_id: leadId });
+      if (rpcError) throw rpcError;
+      const { data: rec } = await supabase.from("crm_records").select("id").eq("lead_id", leadId).maybeSingle();
+      if (rec?.id) {
+        const patch: Record<string, unknown> = {};
+        if (value.trim() !== "" && !Number.isNaN(Number(value))) patch['estimated_value'] = Number(value);
+        if (mrr.trim() !== "" && !Number.isNaN(Number(mrr))) {
+          patch['mrr_amount'] = Number(mrr);
+          patch['deal_type'] = "retainer";
+        }
+        if (closedAt) patch['closed_at'] = closedAt;
+        if (Object.keys(patch).length > 0) {
+          const { error } = await supabase.from("crm_records").update(patch as never).eq("id", rec.id);
+          if (error) throw error;
+        }
+      }
+    } catch (e: any) {
+      toast.error(e?.message ?? "Failed to save deal details");
+    } finally {
+      setSaving(false);
+    }
+    onConfirm({
+      callBookedAt: callBooked ? new Date(callBooked + "T12:00:00").toISOString() : null,
+      closedAt,
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onCancel()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Closing this deal</DialogTitle>
+        </DialogHeader>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <div className="label-text mb-1">When was the call booked</div>
+            <Input type="date" className="h-8 text-[13px]" value={callBooked} onChange={(e) => setCallBooked(e.target.value)} />
+          </div>
+          <div>
+            <div className="label-text mb-1">Closing date</div>
+            <Input type="date" className="h-8 text-[13px]" value={closeDate} onChange={(e) => setCloseDate(e.target.value)} />
+          </div>
+          <div>
+            <div className="label-text mb-1">Deal value</div>
+            <Input type="number" className="h-8 text-[13px]" value={value} onChange={(e) => setValue(e.target.value)} />
+          </div>
+          <div>
+            <div className="label-text mb-1">Monthly amount (MRR)</div>
+            <Input type="number" className="h-8 text-[13px]" value={mrr} onChange={(e) => setMrr(e.target.value)} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel} disabled={saving}>
+            Cancel
+          </Button>
+          <Button onClick={submit} disabled={saving}>
+            Save and close deal
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -1004,6 +1123,7 @@ function OtherChannelsCard({
 }) {
   const [contactKind, setContactKind] = useState<"email" | "message">("message");
   const [replyKind, setReplyKind] = useState<"email" | "message">("message");
+  const [replyDialogOpen, setReplyDialogOpen] = useState(false);
 
   const contactChannel = channels.find((c) => c.id === lead.contacted_channel_id);
   const contactIsInstagram = (contactChannel?.name ?? "").toLowerCase().includes("instagram");
@@ -1085,6 +1205,10 @@ function OtherChannelsCard({
               date={replyDate}
               disabled={!canEdit}
               onChange={(checked, date) => {
+                if (checked) {
+                  setReplyDialogOpen(true);
+                  return;
+                }
                 if (replyKind === "email") onSave({ email_replied: checked, email_replied_at: date });
                 else if (replyIsInstagram) onSave({ instagram_replied: checked, instagram_replied_at: date });
                 else onSave({ linkedin_replied: checked, linkedin_replied_at: date });
@@ -1102,7 +1226,105 @@ function OtherChannelsCard({
           <div className="label-text mt-1">{MANUAL_HELPER}</div>
         </div>
       </div>
+
+      <ReplyDialog
+        open={replyDialogOpen}
+        channels={channels}
+        onCancel={() => setReplyDialogOpen(false)}
+        onConfirm={(patch) => {
+          setReplyDialogOpen(false);
+          onSave(patch);
+        }}
+      />
     </CollapsibleCard>
+  );
+}
+
+function ReplyDialog({
+  open,
+  channels,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean;
+  channels: any[];
+  onCancel: () => void;
+  onConfirm: (patch: Record<string, unknown>) => void;
+}) {
+  const [platform, setPlatform] = useState<"email" | "linkedin" | "instagram">("email");
+  const [viewedDate, setViewedDate] = useState("");
+  const [repliedDate, setRepliedDate] = useState(toDateInput(new Date().toISOString()));
+
+  useEffect(() => {
+    if (open) {
+      setPlatform("email");
+      setViewedDate("");
+      setRepliedDate(toDateInput(new Date().toISOString()));
+    }
+  }, [open]);
+
+  const submit = () => {
+    const repliedAt = repliedDate ? new Date(repliedDate + "T12:00:00").toISOString() : new Date().toISOString();
+    const viewedAt = viewedDate ? new Date(viewedDate + "T12:00:00").toISOString() : repliedAt;
+    const channel = channels.find((c) => c.kind === platform);
+    const patch: Record<string, unknown> = {
+      last_contacted_at: repliedAt,
+    };
+    if (channel) patch['reply_channel_id'] = channel.id;
+    if (platform === "email") {
+      patch['email_viewed'] = true;
+      patch['email_viewed_at'] = viewedAt;
+      patch['email_replied'] = true;
+      patch['email_replied_at'] = repliedAt;
+    } else if (platform === "linkedin") {
+      patch['linkedin_replied'] = true;
+      patch['linkedin_replied_at'] = repliedAt;
+    } else {
+      patch['instagram_replied'] = true;
+      patch['instagram_replied_at'] = repliedAt;
+    }
+    onConfirm(patch);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onCancel()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>They replied</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-3">
+          <div>
+            <div className="label-text mb-1">Where did they reply</div>
+            <Select value={platform} onValueChange={(v) => setPlatform(v as typeof platform)}>
+              <SelectTrigger className="h-8 text-[13px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="email">Email</SelectItem>
+                <SelectItem value="linkedin">LinkedIn</SelectItem>
+                <SelectItem value="instagram">Instagram</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {platform === "email" && (
+            <div>
+              <div className="label-text mb-1">When did they view the email</div>
+              <Input type="date" className="h-8 text-[13px]" value={viewedDate} onChange={(e) => setViewedDate(e.target.value)} />
+            </div>
+          )}
+          <div>
+            <div className="label-text mb-1">When did they reply</div>
+            <Input type="date" className="h-8 text-[13px]" value={repliedDate} onChange={(e) => setRepliedDate(e.target.value)} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button onClick={submit}>Save reply</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
