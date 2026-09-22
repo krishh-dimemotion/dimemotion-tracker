@@ -597,12 +597,12 @@ function WonDialog({
       const { data: rec } = await supabase.from("crm_records").select("id").eq("lead_id", leadId).maybeSingle();
       if (rec?.id) {
         const patch: Record<string, unknown> = {};
-        if (value.trim() !== "" && !Number.isNaN(Number(value))) patch.estimated_value = Number(value);
+        if (value.trim() !== "" && !Number.isNaN(Number(value))) patch['estimated_value'] = Number(value);
         if (mrr.trim() !== "" && !Number.isNaN(Number(mrr))) {
-          patch.mrr_amount = Number(mrr);
-          patch.deal_type = "retainer";
+          patch['mrr_amount'] = Number(mrr);
+          patch['deal_type'] = "retainer";
         }
-        if (closedAt) patch.closed_at = closedAt;
+        if (closedAt) patch['closed_at'] = closedAt;
         if (Object.keys(patch).length > 0) {
           const { error } = await supabase.from("crm_records").update(patch as never).eq("id", rec.id);
           if (error) throw error;
@@ -1270,18 +1270,18 @@ function ReplyDialog({
     const patch: Record<string, unknown> = {
       last_contacted_at: repliedAt,
     };
-    if (channel) patch.reply_channel_id = channel.id;
+    if (channel) patch['reply_channel_id'] = channel.id;
     if (platform === "email") {
-      patch.email_viewed = true;
-      patch.email_viewed_at = viewedAt;
-      patch.email_replied = true;
-      patch.email_replied_at = repliedAt;
+      patch['email_viewed'] = true;
+      patch['email_viewed_at'] = viewedAt;
+      patch['email_replied'] = true;
+      patch['email_replied_at'] = repliedAt;
     } else if (platform === "linkedin") {
-      patch.linkedin_replied = true;
-      patch.linkedin_replied_at = repliedAt;
+      patch['linkedin_replied'] = true;
+      patch['linkedin_replied_at'] = repliedAt;
     } else {
-      patch.instagram_replied = true;
-      patch.instagram_replied_at = repliedAt;
+      patch['instagram_replied'] = true;
+      patch['instagram_replied_at'] = repliedAt;
     }
     onConfirm(patch);
   };
