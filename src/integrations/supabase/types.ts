@@ -1308,6 +1308,10 @@ export type Database = {
           won_this_month: number
         }[]
       }
+      set_crm_stage: {
+        Args: { _kind: string; _lead_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       account_status: "active" | "warming" | "paused"
