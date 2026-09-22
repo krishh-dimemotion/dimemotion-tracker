@@ -1123,6 +1123,7 @@ function OtherChannelsCard({
 }) {
   const [contactKind, setContactKind] = useState<"email" | "message">("message");
   const [replyKind, setReplyKind] = useState<"email" | "message">("message");
+  const [replyDialogOpen, setReplyDialogOpen] = useState(false);
 
   const contactChannel = channels.find((c) => c.id === lead.contacted_channel_id);
   const contactIsInstagram = (contactChannel?.name ?? "").toLowerCase().includes("instagram");
