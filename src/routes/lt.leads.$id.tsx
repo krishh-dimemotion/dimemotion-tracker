@@ -1268,10 +1268,8 @@ function ReplyDialog({
     const viewedAt = viewedDate ? new Date(viewedDate + "T12:00:00").toISOString() : repliedAt;
     const channel = channels.find((c) => c.kind === platform);
     const patch: Record<string, unknown> = {
-      reply_sentiment: undefined,
       last_contacted_at: repliedAt,
     };
-    delete patch.reply_sentiment;
     if (channel) patch.reply_channel_id = channel.id;
     if (platform === "email") {
       patch.email_viewed = true;
