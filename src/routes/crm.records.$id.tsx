@@ -75,18 +75,6 @@ function RecordDetailPage() {
     },
   });
 
-  const contactLogQuery = useQuery({
-    queryKey: ["crm_contact_log", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("crm_contact_log")
-        .select("*, channels(name), profiles!crm_contact_log_created_by_fkey(full_name,email)")
-        .eq("crm_record_id", id)
-        .order("contacted_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
 
   const record = recordQuery.data as any;
   const lead = record?.leads;
