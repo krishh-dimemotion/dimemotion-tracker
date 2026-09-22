@@ -2,6 +2,12 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
+const THEME_STORAGE_KEY = "buzzspear-theme";
+
+function isTheme(value: string | null): value is "light" | "dark" {
+  return value === "light" || value === "dark";
+}
+
 export type Profile = {
   id: string;
   email: string | null;
@@ -36,6 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [permissions, setPermissions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [theme, setThemeState] = useState<"light" | "dark">("light");
+  const [themeInitialized, setThemeInitialized] = useState(false);
 
   const load = async (uid: string | undefined) => {
     if (!uid) {
@@ -51,7 +58,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setPermissions((perms ?? []).filter((r) => r.enabled).map((r) => r.permission_key));
     const t = (p as Profile | null)?.theme === "dark" ? "dark" : "light";
     setThemeState(t);
+    window.localStorage.setItem(THEME_STORAGE_KEY, t);
   };
+
+  useEffect(() => {
+    const savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+    if (isTheme(savedTheme)) setThemeState(savedTheme);
+    setThemeInitialized(true);
+
+    const syncTheme = (event: StorageEvent) => {
+      if (event.key !== THEME_STORAGE_KEY || !isTheme(event.newValue)) return;
+      setThemeState(event.newValue);
+    };
+
+    window.addEventListener("storage", syncTheme);
+    return () => window.removeEventListener("storage", syncTheme);
+  }, []);
 
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
@@ -68,12 +90,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (!themeInitialized) return;
     const root = document.documentElement;
     root.classList.toggle("dark", theme === "dark");
-  }, [theme]);
+    root.style.colorScheme = theme;
+  }, [theme, themeInitialized]);
 
   const setTheme = (t: "light" | "dark") => {
     setThemeState(t);
+    window.localStorage.setItem(THEME_STORAGE_KEY, t);
     if (profile) void supabase.from("profiles").update({ theme: t }).eq("id", profile.id);
   };
 
