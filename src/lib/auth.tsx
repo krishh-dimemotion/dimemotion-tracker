@@ -111,8 +111,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const setTheme = (t: "light" | "dark") => {
     setThemeState(t);
     window.localStorage.setItem(THEME_STORAGE_KEY, t);
-    if (profile) void supabase.from("profiles").update({ theme: t }).eq("id", profile.id);
+    if (profile) void supabase.from("profiles").update({ theme: t } as never).eq("id", profile.id);
   };
+
 
   const isAdmin = profile?.role === "admin" || profile?.role === "owner";
 
