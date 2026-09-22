@@ -427,6 +427,7 @@ function HeaderCard({
   companyNameRef: React.RefObject<HTMLInputElement | null>;
 }) {
   const [name, setName] = useState(lead.company_name ?? "");
+  const [wonTarget, setWonTarget] = useState<{ stage_id?: string; status?: string } | null>(null);
   useEffect(() => setName(lead.company_name ?? ""), [lead.id]);
 
   const lastActivity =
