@@ -43,6 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [theme, setThemeState] = useState<"light" | "dark">("light");
   const [themeInitialized, setThemeInitialized] = useState(false);
+  const themeResolved = useRef(false);
 
   const load = async (uid: string | undefined) => {
     if (!uid) {
