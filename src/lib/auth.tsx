@@ -58,8 +58,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile((p as Profile) ?? null);
     setPermissions((perms ?? []).filter((r) => r.enabled).map((r) => r.permission_key));
 
-    // The device's saved choice always wins. Only fall back to the stored
-    // profile theme when this browser has no preference yet.
+    // Resolve the theme once, on the first profile load. After that the
+    // theme only changes through setTheme (or another tab via the storage
+    // event), so profile refreshes (e.g. saving settings) can never flip it.
+    if (themeResolved.current) return;
+    themeResolved.current = true;
     const local = window.localStorage.getItem(THEME_STORAGE_KEY);
     const remote = (p as Profile | null)?.theme === "dark" ? "dark" : "light";
     if (isTheme(local)) {
