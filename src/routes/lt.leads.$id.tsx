@@ -1204,6 +1204,10 @@ function OtherChannelsCard({
               date={replyDate}
               disabled={!canEdit}
               onChange={(checked, date) => {
+                if (checked) {
+                  setReplyDialogOpen(true);
+                  return;
+                }
                 if (replyKind === "email") onSave({ email_replied: checked, email_replied_at: date });
                 else if (replyIsInstagram) onSave({ instagram_replied: checked, instagram_replied_at: date });
                 else onSave({ linkedin_replied: checked, linkedin_replied_at: date });
