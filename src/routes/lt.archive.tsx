@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppPage } from "@/components/app-shell";
-import { Card, EmptyState, Loading } from "@/components/kit";
+import { Card, EmptyState, Loading, fmtDate } from "@/components/live/kit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -10,7 +10,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { useStages, useCountries } from "@/hooks/useLookups";
-import { fmtDate } from "@/lib/format";
 import type { Lead } from "@/components/leads/types";
 
 export const Route = createFileRoute("/lt/archive")({
@@ -93,6 +92,7 @@ function ArchivePage() {
   const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.id));
 
   return (
+    // live: guide="archive" (repo AppPage has no guide prop)
     <AppPage module="lead" title="Archive" perm="lead.archive">
       <div className="flex flex-col gap-4">
         <Card>

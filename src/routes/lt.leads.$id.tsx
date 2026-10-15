@@ -1,28 +1,71 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// Ported from live chunk lt.leads._id-KGC4i_M0.js
+import { useEffect, useRef, useState, type KeyboardEvent, type RefObject } from "react";
 import { createFileRoute, Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Archive, ArchiveRestore, ChevronDown, ExternalLink, Plus, Trash2, Upload } from "lucide-react";
+import {
+  Archive,
+  ArchiveRestore,
+  BadgeCheck,
+  CircleDashed,
+  Check,
+  ChevronDown,
+  CirclePause,
+  CirclePlay,
+  Copy,
+  Eraser,
+  ExternalLink,
+  Instagram,
+  Linkedin,
+  Mail,
+  Plus,
+  Settings2,
+  Trash2,
+  TriangleAlert,
+  Upload,
+  UserPlus,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { AppPage } from "@/components/app-shell";
-import { CollapsibleCard, EmptyState, Loading, MANUAL_HELPER, Pill, CheckDate } from "@/components/kit";
+import {
+  CheckDate,
+  CollapsibleCard,
+  DatePicker,
+  EmptyState,
+  Loading,
+  MANUAL_HELPER,
+  Pill,
+} from "@/components/live/kit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { isTypingTarget } from "@/lib/shortcuts";
 import { useStages, useChannels, useSenderAccounts, useCountries, useTags } from "@/hooks/useLookups";
-import { fmtDate, fmtDateTime, toDateInput } from "@/lib/format";
 import { StagePill } from "@/components/leads/StagePill";
-import { PeopleCard } from "@/components/leads/detail/PeopleCard";
-import { FollowupsCard } from "@/components/leads/detail/FollowupsCard";
-import { ActivityFeed } from "@/components/leads/detail/ActivityFeed";
-import { LeadTasksCard } from "@/components/tasks/tasks";
-import { SENTIMENT_OPTIONS, STATUS_OPTIONS, PRIORITY_OPTIONS, type LeadContact, type LeadLink, type LeadFollowup } from "@/components/leads/types";
+import { CopyButton, LinkInput, VerifyToggle } from "@/components/lt/copy-button";
+import { EventRow, AddActivityForm, useEventActions } from "@/components/lt/events";
+import { LeadTasksCard } from "@/components/lt/tasks";
+import { autoStageForOutreach, normalizeForChannel } from "@/lib/live/config";
+import { TemplateSelect } from "@/components/live/template-select";
+import { findDuplicateLead, DUPLICATE_MATCH_LABELS } from "@/lib/live/duplicate-detector";
+import { followupPauseReason, skipPendingFollowups, resumeSkippedFollowups } from "@/lib/live/followup-actions";
+import { useOutreachTemplates, renderTemplate } from "@/lib/live/outreach-templates";
 
 export const Route = createFileRoute("/lt/leads/$id")({
   head: () => ({
@@ -36,6 +79,1063 @@ export const Route = createFileRoute("/lt/leads/$id")({
   component: LeadDetailPage,
 });
 
+type AnyRow = Record<string, any>;
+
+// types-BOm9CRLy.js
+const STATUS_OPTIONS = ["new", "in_progress", "on_hold", "won", "lost"];
+const PRIORITY_OPTIONS = ["low", "medium", "high"];
+const SENTIMENT_OPTIONS = ["positive", "neutral", "negative"];
+
+// kit Iu / Ru (not in shared kit export list, kept local)
+function fmtDate(v: string | null | undefined) {
+  if (!v) return "";
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
+}
+function toDateInput(v: string | null | undefined) {
+  if (!v) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return "";
+  return new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
+}
+
+// app-shell Aa / Ba / Va (event meta + email list helpers)
+function eventMeta(e: AnyRow): AnyRow {
+  return e.meta && typeof e.meta === "object" ? e.meta : {};
+}
+type EmailEntry = { email: string; verified: boolean };
+function normalizeEmails(v: unknown): EmailEntry[] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .map((e) => {
+      if (typeof e === "string") return e.trim() ? { email: e.trim(), verified: false } : null;
+      if (e && typeof e === "object" && typeof (e as AnyRow).email === "string")
+        return { email: (e as AnyRow).email.trim(), verified: !!(e as AnyRow).verified };
+      return null;
+    })
+    .filter((e): e is EmailEntry => !!e && !!e.email);
+}
+function addEmail(list: EmailEntry[], input: string, primary?: string | null): EmailEntry[] {
+  const v = normalizeForChannel("email", input).trim();
+  if (!v) return list;
+  const low = v.toLowerCase();
+  if (list.some((e) => e.email.toLowerCase() === low) || (primary ?? "").toLowerCase() === low) return list;
+  return [...list, { email: v, verified: false }];
+}
+
+/* ---------- message angles ---------- */
+const ANGLES_KEY = "message_angles";
+const ANGLES_QK = ["app_settings", ANGLES_KEY];
+const DEFAULT_ANGLES = ["Loom", "Audit", "Personal audit", "Breakdown"];
+
+function parseAngles(v: unknown) {
+  const a = v && typeof v === "object" ? (v as AnyRow).angles : undefined;
+  return Array.isArray(a)
+    ? a.filter((e) => typeof e === "string" && e.trim().length > 0).map((e: string) => e.trim())
+    : DEFAULT_ANGLES;
+}
+function useAngles() {
+  return useQuery({
+    queryKey: ANGLES_QK,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("app_settings").select("value").eq("key", ANGLES_KEY).maybeSingle();
+      if (error) throw error;
+      return data ? parseAngles(data.value) : DEFAULT_ANGLES;
+    },
+    staleTime: 3e5,
+  });
+}
+async function saveAngles(angles: string[]) {
+  const { error } = await supabase
+    .from("app_settings")
+    .upsert({ key: ANGLES_KEY, value: { angles } } as never, { onConflict: "workspace_id,key" });
+  if (error) throw error;
+}
+
+function PersonalizedMessageCard({ lead, canEdit, onSave }: { lead: AnyRow; canEdit: boolean; onSave: (p: AnyRow) => void }) {
+  const { isAdmin } = useAuth();
+  const qc = useQueryClient();
+  const { data: angles = [] } = useAngles();
+  const [msg, setMsg] = useState<string>(lead.personalized_message ?? "");
+  const [angle, setAngle] = useState<string | null>(lead.message_angle ?? null);
+  const [templateId, setTemplateId] = useState<string | null>(lead.outreach_template_id ?? null);
+  const [newAngle, setNewAngle] = useState("");
+  const [managing, setManaging] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    setMsg(lead.personalized_message ?? "");
+    setAngle(lead.message_angle ?? null);
+    setTemplateId(lead.outreach_template_id ?? null);
+  }, [lead.id]);
+
+  const shown = angle && !angles.some((a) => a.toLowerCase() === angle.toLowerCase()) ? [...angles, angle] : angles;
+  const pick = (a: string) => {
+    if (!canEdit || managing) return;
+    const next = angle === a ? null : a;
+    setAngle(next);
+    onSave({ message_angle: next });
+  };
+  const persist = async (next: string[]) => {
+    const prev = angles;
+    qc.setQueryData(ANGLES_QK, next);
+    try {
+      await saveAngles(next);
+    } catch (e) {
+      qc.setQueryData(ANGLES_QK, prev);
+      toast.error(e instanceof Error ? e.message : "Could not save the angle list");
+    }
+  };
+  const add = () => {
+    const v = newAngle.trim();
+    if (!v) return;
+    const existing = angles.find((a) => a.toLowerCase() === v.toLowerCase());
+    setNewAngle("");
+    if (!existing) void persist([...angles, v]);
+    const chosen = existing ?? v;
+    if (canEdit && angle !== chosen) {
+      setAngle(chosen);
+      onSave({ message_angle: chosen });
+    }
+  };
+  const removeAngle = (a: string) => {
+    if (window.confirm(`Remove the angle "${a}" from the list? Leads already using it keep it.`))
+      void persist(angles.filter((x) => x !== a));
+  };
+  const onKey = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      add();
+    }
+  };
+  const copy = async () => {
+    if (!msg.trim()) return toast.error("Write the message first.");
+    try {
+      await navigator.clipboard.writeText(msg);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+      toast.success("Message copied");
+    } catch {
+      toast.error("Could not copy. Select the text and copy it by hand.");
+    }
+  };
+  const blur = () => {
+    if (msg !== (lead.personalized_message ?? "")) onSave({ personalized_message: msg || null });
+  };
+  const onTemplate = (t: AnyRow | null) => {
+    setTemplateId(t?.id ?? null);
+    if (!t) return onSave({ outreach_template_id: null });
+    const body = renderTemplate(t.body, { name: lead.primary_contact, company: lead.company_name });
+    const replace = body.trim() && (!msg.trim() || window.confirm("Replace the current message with this template?"));
+    if (replace) setMsg(body);
+    onSave({ outreach_template_id: t.id, ...(replace ? { personalized_message: body } : {}) });
+  };
+  const words = msg.trim() ? msg.trim().split(/\s+/).length : 0;
+
+  return (
+    <CollapsibleCard id="lead.personalized_message" title="Personalized message">
+      <div className="flex flex-col gap-4">
+        <div>
+          <div className="label-text mb-1.5">Outreach template</div>
+          <TemplateSelect
+            channelId={lead.contacted_channel_id ?? lead.channel_id ?? null}
+            value={templateId}
+            onChange={onTemplate}
+            disabled={!canEdit}
+            className="w-full max-w-[320px]"
+            showManageLink={canEdit}
+          />
+        </div>
+        <div>
+          <div className="label-text mb-1.5">Angle</div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {shown.map((a) => {
+              const on = angle === a;
+              return (
+                <button
+                  key={a}
+                  type="button"
+                  disabled={!canEdit && !managing}
+                  onClick={() => pick(a)}
+                  aria-pressed={on}
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[12px] transition-colors",
+                    on
+                      ? "border-foreground bg-foreground text-background"
+                      : "border-border text-muted-foreground hover:bg-subtle hover:text-foreground",
+                    managing && "cursor-default",
+                  )}
+                >
+                  {on && !managing && <Check className="size-3" />}
+                  {a}
+                  {managing && angles.includes(a) && (
+                    <X
+                      className="size-3 cursor-pointer text-negative"
+                      onClick={(ev) => {
+                        ev.stopPropagation();
+                        removeAngle(a);
+                      }}
+                    />
+                  )}
+                </button>
+              );
+            })}
+            {isAdmin && (
+              <>
+                <span className="inline-flex items-center gap-1">
+                  <Input
+                    value={newAngle}
+                    onChange={(e) => setNewAngle(e.target.value)}
+                    onKeyDown={onKey}
+                    placeholder="New angle"
+                    className="h-7 w-28 text-[12px]"
+                  />
+                  <button
+                    type="button"
+                    onClick={add}
+                    title="Add angle"
+                    className="inline-flex size-7 items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-subtle hover:text-foreground"
+                  >
+                    <Plus className="size-3.5" />
+                  </button>
+                </span>
+                {angles.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setManaging((m) => !m)}
+                    className={cn(
+                      "inline-flex h-7 items-center gap-1 rounded-md border px-2 text-[11px]",
+                      managing
+                        ? "border-negative text-negative"
+                        : "border-border text-muted-foreground hover:bg-subtle hover:text-foreground",
+                    )}
+                  >
+                    <Settings2 className="size-3.5" />
+                    {managing ? "Done" : "Manage"}
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+          <p className="mt-1.5 text-[11px] text-muted-foreground">
+            The approach and next step for this lead, e.g. a Loom for high-potential leads, an audit for the rest.
+          </p>
+        </div>
+        <div>
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <span className="label-text">Message</span>
+            <Button size="sm" variant="outline" className="h-7 text-[12px]" onClick={() => void copy()}>
+              {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />} {copied ? "Copied" : "Copy"}
+            </Button>
+          </div>
+          <Textarea
+            className="min-h-[140px] text-[13px] leading-relaxed"
+            placeholder="Write the personalized message you'll send this lead…"
+            value={msg}
+            disabled={!canEdit}
+            onChange={(e) => setMsg(e.target.value)}
+            onBlur={blur}
+          />
+          <div className="mt-1 text-right text-[11px] text-muted-foreground">
+            {words} {words === 1 ? "word" : "words"} · {msg.length} characters
+          </div>
+        </div>
+      </div>
+    </CollapsibleCard>
+  );
+}
+
+/* ---------- stage gap logic ---------- */
+const hasContact = (l: AnyRow) => !!(l.email_sent || l.linkedin_sent || l.instagram_sent || l.linkedin_connection_sent);
+const hasReply = (l: AnyRow) => !!(l.email_replied || l.linkedin_replied || l.instagram_replied);
+const isContactStage = (s?: AnyRow | null) => !!(s && /^contact/i.test(s.name.trim()));
+const isReplyStage = (s?: AnyRow | null) => !!(s && (s.is_reply_stage || /^repl/i.test(s.name.trim())));
+
+type GapMode = "reply" | "contact";
+function stageGap(lead: AnyRow, stages: AnyRow[]): GapMode | null {
+  const cur = stages.find((s) => s.id === lead.stage_id);
+  if (!cur || cur.is_won || cur.is_lost) return null;
+  const c = stages.find(isContactStage);
+  const r = stages.find(isReplyStage);
+  if (r && cur.order_index >= r.order_index && !hasReply(lead)) return "reply";
+  if (c && cur.order_index >= c.order_index && !hasContact(lead)) return "contact";
+  return null;
+}
+
+type ChannelOpt = { field: string; label: string; kind: string; icon: LucideIcon };
+const CONTACT_OPTS: ChannelOpt[] = [
+  { field: "email_sent", label: "Email", kind: "email", icon: Mail },
+  { field: "linkedin_sent", label: "LinkedIn message", kind: "linkedin", icon: Linkedin },
+  { field: "instagram_sent", label: "Instagram", kind: "instagram", icon: Instagram },
+  { field: "linkedin_connection_sent", label: "Connection request", kind: "linkedin", icon: UserPlus },
+];
+const REPLY_OPTS: ChannelOpt[] = [
+  { field: "email_replied", label: "Email", kind: "email", icon: Mail },
+  { field: "linkedin_replied", label: "LinkedIn", kind: "linkedin", icon: Linkedin },
+  { field: "instagram_replied", label: "Instagram", kind: "instagram", icon: Instagram },
+];
+
+function gapPatch(mode: GapMode, field: string, channels: AnyRow[]) {
+  const opt = [...CONTACT_OPTS, ...REPLY_OPTS].find((o) => o.field === field);
+  const ch =
+    channels.find((c) => (c.kind ?? "").toLowerCase() === opt?.kind) ??
+    channels.find((c) => c.name.toLowerCase().includes(opt?.kind ?? "~"));
+  const now = new Date().toISOString();
+  return {
+    [field]: true,
+    [`${field}_at`]: now,
+    ...(ch ? { [mode === "contact" ? "contacted_channel_id" : "reply_channel_id"]: ch.id } : {}),
+    ...(mode === "contact" ? { last_contacted_at: now } : {}),
+  };
+}
+
+function ChannelPickDialog({
+  mode,
+  stageName,
+  onPick,
+  onSkip,
+  onClose,
+}: {
+  mode: GapMode | null;
+  stageName?: string | null;
+  onPick: (field: string) => void;
+  onSkip?: () => void;
+  onClose: () => void;
+}) {
+  const opts = mode === "reply" ? REPLY_OPTS : CONTACT_OPTS;
+  return (
+    <Dialog open={mode !== null} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-md" onOpenAutoFocus={(e) => e.preventDefault()}>
+        <DialogHeader>
+          <DialogTitle>{mode === "reply" ? "Where did they reply?" : "How did you contact them?"}</DialogTitle>
+          <DialogDescription>
+            {stageName ? `Moving to "${stageName}". ` : ""}
+            Pick the channel so Activity, the Ledger and your outreach numbers stay accurate.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {opts.map((o) => (
+            <Button
+              key={o.field}
+              variant="outline"
+              className="h-11 min-w-0 justify-start gap-2.5 px-3 text-left whitespace-normal"
+              onClick={() => onPick(o.field)}
+            >
+              <o.icon className="size-4 shrink-0" />
+              <span className="leading-tight">{o.label}</span>
+            </Button>
+          ))}
+        </div>
+        {onSkip && (
+          <DialogFooter>
+            <Button variant="ghost" size="sm" onClick={onSkip}>
+              Skip, just change the stage
+            </Button>
+          </DialogFooter>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function GapWarning({ gap, onLog, canEdit }: { gap: GapMode | null; onLog: () => void; canEdit: boolean }) {
+  if (!gap) return null;
+  return (
+    <div className="mt-1 inline-flex items-center gap-1.5 rounded-md border border-warning px-2 py-1 text-[12px] text-warning">
+      <TriangleAlert className="size-3.5" />
+      {gap === "reply" ? "No reply logged" : "No outreach logged"}
+      {canEdit && (
+        <button type="button" onClick={onLog} className="ml-1 font-medium underline underline-offset-2">
+          Log it
+        </button>
+      )}
+    </div>
+  );
+}
+
+async function warnDuplicate(input: AnyRow, leadId: string) {
+  const d = await findDuplicateLead(input, { excludeLeadId: leadId });
+  if (d)
+    toast.warning(`Possible duplicate: ${d.companyName} (${d.leadCode}) has the ${DUPLICATE_MATCH_LABELS[d.matchedOn]}.`, {
+      duration: 12e3,
+      action: { label: "Open lead", onClick: () => window.open(`/lt/leads/${d.leadId}`, "_blank", "noopener") },
+    });
+}
+
+/* ---------- people ---------- */
+function ContactRow({
+  contact,
+  canEdit,
+  canRemove,
+  onChange,
+  onRemove,
+}: {
+  contact: AnyRow;
+  canEdit: boolean;
+  canRemove: boolean;
+  onChange: (p: AnyRow) => void;
+  onRemove: () => void;
+}) {
+  const [name, setName] = useState(contact.person_name ?? "");
+  const [title, setTitle] = useState(contact.job_title ?? "");
+  const [email, setEmail] = useState(contact.email ?? "");
+  const [linkedin, setLinkedin] = useState(contact.linkedin_url ?? "");
+  const [instagram, setInstagram] = useState(contact.instagram_url ?? "");
+  const [phone, setPhone] = useState(contact.phone ?? "");
+  const [extra, setExtra] = useState("");
+  const emails = normalizeEmails(contact.emails);
+
+  const addExtra = () => {
+    if (!extra.trim()) return;
+    const next = addEmail(emails, extra, contact.email);
+    setExtra("");
+    if (next === emails) return;
+    onChange({ emails: next });
+    void warnDuplicate({ email: next[next.length - 1].email }, contact.lead_id);
+  };
+
+  useEffect(() => {
+    setName(contact.person_name ?? "");
+    setTitle(contact.job_title ?? "");
+    setEmail(contact.email ?? "");
+    setLinkedin(contact.linkedin_url ?? "");
+    setInstagram(contact.instagram_url ?? "");
+    setPhone(contact.phone ?? "");
+  }, [contact.id]);
+
+  return (
+    <div className="rounded-lg border border-border/80 p-3">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        <Input
+          placeholder="Person name"
+          className="h-8 text-[13px]"
+          value={name}
+          disabled={!canEdit}
+          onChange={(e) => setName(e.target.value)}
+          onBlur={() => name !== (contact.person_name ?? "") && onChange({ person_name: name || null })}
+        />
+        <Input
+          placeholder="Job title"
+          className="h-8 text-[13px]"
+          value={title}
+          disabled={!canEdit}
+          onChange={(e) => setTitle(e.target.value)}
+          onBlur={() => title !== (contact.job_title ?? "") && onChange({ job_title: title || null })}
+        />
+        <div className="flex items-center gap-1.5">
+          <LinkInput
+            kind="email"
+            placeholder="Email"
+            wrapperClassName="min-w-0 flex-1"
+            className="h-8 text-[13px]"
+            value={email}
+            disabled={!canEdit}
+            onChange={(e) => setEmail(e.target.value)}
+            onBlur={() => {
+              const v = normalizeForChannel("email", email);
+              setEmail(v);
+              if (v !== (contact.email ?? "")) {
+                onChange({ email: v || null, ...(contact.email_verified ? { email_verified: false } : {}) });
+                if (v) void warnDuplicate({ email: v }, contact.lead_id);
+              }
+            }}
+          />
+          <CopyButton text={email} />
+          {(email.trim() || contact.email_verified) && (
+            <VerifyToggle
+              verified={!!contact.email_verified}
+              disabled={!canEdit}
+              onToggle={(v) => {
+                const n = normalizeForChannel("email", email);
+                onChange({ email_verified: v, ...(n && n !== (contact.email ?? "") ? { email: n } : {}) });
+              }}
+            />
+          )}
+        </div>
+        <LinkInput
+          placeholder="LinkedIn URL"
+          className="h-8 text-[13px]"
+          value={linkedin}
+          disabled={!canEdit}
+          onChange={(e) => setLinkedin(e.target.value)}
+          onBlur={() => {
+            const v = normalizeForChannel("linkedin", linkedin);
+            setLinkedin(v);
+            if (v !== (contact.linkedin_url ?? "")) {
+              onChange({ linkedin_url: v || null });
+              if (v) void warnDuplicate({ linkedin: v }, contact.lead_id);
+            }
+          }}
+        />
+        <LinkInput
+          placeholder="Instagram URL"
+          className="h-8 text-[13px]"
+          value={instagram}
+          disabled={!canEdit}
+          onChange={(e) => setInstagram(e.target.value)}
+          onBlur={() => {
+            const v = normalizeForChannel("instagram", instagram);
+            setInstagram(v);
+            if (v !== (contact.instagram_url ?? "")) {
+              onChange({ instagram_url: v || null });
+              if (v) void warnDuplicate({ instagram: v }, contact.lead_id);
+            }
+          }}
+        />
+        <Input
+          placeholder="Phone"
+          className="h-8 text-[13px]"
+          value={phone}
+          disabled={!canEdit}
+          onChange={(e) => setPhone(e.target.value)}
+          onBlur={() => phone !== (contact.phone ?? "") && onChange({ phone: phone || null })}
+        />
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        {emails.map((em, i) => (
+          <span
+            key={`${em.email}-${i}`}
+            className={cn(
+              "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[12px]",
+              em.verified ? "border-positive" : "border-border",
+            )}
+          >
+            <button
+              type="button"
+              disabled={!canEdit}
+              aria-pressed={em.verified}
+              title={em.verified ? "Verified. Click to mark as not verified." : "Not verified. Click to mark as verified."}
+              onClick={() => onChange({ emails: emails.map((x, j) => (j === i ? { ...x, verified: !x.verified } : x)) })}
+              className={cn(
+                "inline-flex items-center",
+                em.verified ? "text-positive" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {em.verified ? <BadgeCheckIcon /> : <CircleDashedIcon />}
+            </button>
+            <a href={`mailto:${em.email}`} className="hover:underline">
+              {em.email}
+            </a>
+            <CopyButton text={em.email} size="sm" />
+            {canEdit && (
+              <button
+                type="button"
+                title="Remove this email"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={() => onChange({ emails: emails.filter((_, j) => j !== i) })}
+              >
+                <X className="size-3" />
+              </button>
+            )}
+          </span>
+        ))}
+        {canEdit && (
+          <div className="flex items-center gap-1">
+            <Input
+              placeholder="Additional email"
+              className="h-7 w-[180px] text-[12px]"
+              value={extra}
+              onChange={(e) => setExtra(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  addExtra();
+                }
+              }}
+            />
+            <Button variant="outline" size="sm" className="h-7 text-[12px]" onClick={addExtra}>
+              Add email
+            </Button>
+          </div>
+        )}
+      </div>
+      <div className="mt-2 flex items-center justify-between">
+        <label className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={!!contact.is_primary}
+            disabled={!canEdit}
+            onChange={(e) => onChange({ is_primary: e.target.checked })}
+          />
+          Primary contact
+        </label>
+        {canEdit && canRemove && (
+          <Button variant="ghost" size="icon" className="size-7" onClick={onRemove}>
+            <Trash2 className="size-3.5" />
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const BadgeCheckIcon = () => <BadgeCheck className="size-3.5" />;
+const CircleDashedIcon = () => <CircleDashed className="size-3.5" />;
+
+function PeopleCard({
+  contacts,
+  canEdit,
+  onChange,
+  onAdd,
+  onRemove,
+}: {
+  contacts: AnyRow[];
+  canEdit: boolean;
+  onChange: (id: string, p: AnyRow) => void;
+  onAdd: () => void;
+  onRemove: (id: string) => void;
+}) {
+  return (
+    <CollapsibleCard id="lead.people" title="People">
+      <div className="flex flex-col gap-3">
+        {contacts.map((c) => (
+          <ContactRow
+            key={c.id}
+            contact={c}
+            canEdit={canEdit}
+            canRemove={contacts.length > 1}
+            onChange={(p) => onChange(c.id, p)}
+            onRemove={() => onRemove(c.id)}
+          />
+        ))}
+        {canEdit && (
+          <Button variant="outline" size="sm" className="w-fit" onClick={onAdd}>
+            <Plus className="mr-1 size-3.5" /> Add person
+          </Button>
+        )}
+      </div>
+    </CollapsibleCard>
+  );
+}
+
+/* ---------- follow-ups ---------- */
+function FuDate({ value, disabled, onSave }: { value: string | null; disabled?: boolean; onSave: (v: string | null) => void; ariaLabel?: string }) {
+  return (
+    <DatePicker
+      value={toDateInput(value) || undefined}
+      disabled={disabled}
+      placeholder="Pick date"
+      onChange={(v: string) => onSave(v ? new Date(v + "T12:00:00").toISOString() : null)}
+      className="h-8 min-w-0 text-[13px]"
+    />
+  );
+}
+
+function FollowupRow({
+  fu,
+  channels,
+  canEdit,
+  defaultChannelId,
+  lead,
+  onChange,
+  onDelete,
+}: {
+  fu: AnyRow;
+  channels: AnyRow[];
+  canEdit: boolean;
+  defaultChannelId: string | null;
+  lead: AnyRow;
+  onChange: (p: AnyRow) => void;
+  onDelete?: () => void;
+}) {
+  const [notes, setNotes] = useState(fu.notes ?? "");
+  useEffect(() => setNotes(fu.notes ?? ""), [fu.id, fu.notes]);
+  const { data: templates } = useOutreachTemplates();
+  const tpl = fu.outreach_template_id ? (templates ?? []).find((t: AnyRow) => t.id === fu.outreach_template_id) : undefined;
+  const sent = fu.status === "sent";
+  const skipped = fu.status === "skipped";
+  const copy = async () => {
+    if (!tpl) return;
+    try {
+      await navigator.clipboard.writeText(renderTemplate(tpl.body, lead));
+      toast.success("Message copied");
+    } catch {
+      toast.error("Could not copy the message.");
+    }
+  };
+  return (
+    <div
+      className={cn("flex flex-col gap-2 rounded-lg border border-border/80 p-2.5", sent && "bg-subtle/40", skipped && "opacity-55")}
+      title={skipped ? "Stopped" : undefined}
+    >
+      <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[40px_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.3fr)_auto_32px]">
+        <div className="text-[12px] font-medium text-muted-foreground">#{fu.sequence_number}</div>
+        <FuDate
+          ariaLabel={`Follow-up ${fu.sequence_number} date`}
+          value={fu.scheduled_date}
+          disabled={!canEdit}
+          onSave={(v) => onChange({ scheduled_date: v })}
+        />
+        <Select
+          key={fu.channel_id ?? "none"}
+          {...(fu.channel_id ? { value: fu.channel_id } : {})}
+          disabled={!canEdit}
+          onValueChange={(v) => onChange({ channel_id: v })}
+        >
+          <SelectTrigger className="h-8 min-w-0 text-[13px]">
+            <SelectValue placeholder="Channel" />
+          </SelectTrigger>
+          <SelectContent>
+            {channels.map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <div className="flex min-w-0 items-center gap-1">
+          <TemplateSelect
+            channelId={fu.channel_id ?? defaultChannelId}
+            value={fu.outreach_template_id ?? null}
+            disabled={!canEdit}
+            onChange={(t: AnyRow | null) => onChange({ outreach_template_id: t?.id ?? null })}
+            placeholder="Message template"
+            className="flex-1"
+          />
+          {tpl && (
+            <Button variant="ghost" size="icon" className="size-8 shrink-0" title="Copy this message" onClick={() => void copy()}>
+              <Copy className="size-3.5" />
+            </Button>
+          )}
+        </div>
+        <label className="flex items-center gap-2 text-[13px] whitespace-nowrap">
+          <Checkbox
+            checked={sent}
+            disabled={!canEdit}
+            onCheckedChange={(v) => {
+              const on = v === true;
+              onChange({ status: on ? "sent" : "pending", sent_at: on ? new Date().toISOString() : null });
+            }}
+          />
+          Sent
+        </label>
+        {onDelete ? (
+          <Button variant="ghost" size="icon" className="size-8" title="Delete this follow-up" onClick={onDelete}>
+            <Trash2 className="size-4 text-negative" />
+          </Button>
+        ) : (
+          <span />
+        )}
+      </div>
+      <div className={cn("grid grid-cols-1 gap-2", sent && "sm:grid-cols-[180px_minmax(0,1fr)]")}>
+        {sent && (
+          <label className="flex items-center gap-2 text-[12px] text-muted-foreground">
+            <span className="shrink-0">Sent on</span>
+            <FuDate
+              ariaLabel={`Follow-up ${fu.sequence_number} sent date`}
+              value={fu.sent_at}
+              disabled={!canEdit}
+              onSave={(v) => onChange({ sent_at: v })}
+            />
+          </label>
+        )}
+        <Textarea
+          placeholder="Notes"
+          className="h-8 min-h-8 text-[13px]"
+          disabled={!canEdit}
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          onBlur={() => notes !== (fu.notes ?? "") && onChange({ notes: notes || null })}
+        />
+      </div>
+    </div>
+  );
+}
+
+function FollowupsCard({
+  followups,
+  channels,
+  canEdit,
+  leadId,
+  lastContactedAt,
+  outreachAt,
+  defaultChannelId = null,
+  lead = {},
+  onChange,
+  onAdd,
+  invalidate,
+  pauseReason = null,
+}: {
+  followups: AnyRow[];
+  channels: AnyRow[];
+  canEdit: boolean;
+  leadId: string;
+  lastContactedAt: string | null;
+  outreachAt: string | null;
+  defaultChannelId?: string | null;
+  lead?: AnyRow;
+  onChange: (id: string, p: AnyRow) => void;
+  onAdd: () => void;
+  invalidate: () => void;
+  pauseReason?: string | null;
+}) {
+  const sorted = [...followups].sort((a, b) => a.sequence_number - b.sequence_number);
+  const templatesQ = useQuery({
+    queryKey: ["followup_templates"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("followup_templates" as never).select("*").order("name");
+      if (error) throw error;
+      return (data ?? []) as AnyRow[];
+    },
+  });
+  const channelForKind = (kind?: string | null) => {
+    if (!kind) return null;
+    const k = kind.toLowerCase();
+    return channels.find((c) => c.name.toLowerCase().includes(k))?.id ?? null;
+  };
+  const isBlank = (f: AnyRow) =>
+    !f.scheduled_date && f.status !== "sent" && !f.sent_at && !f.channel_id && !(f.notes ?? "").trim();
+
+  const applyTemplate = async (tpl: AnyRow) => {
+    const steps: AnyRow[] = Array.isArray(tpl.steps) ? tpl.steps : [];
+    if (steps.length === 0) {
+      toast.error("This template has no steps");
+      return;
+    }
+    const base = outreachAt ?? lastContactedAt;
+    const d = base ? new Date(base) : new Date();
+    d.setHours(12, 0, 0, 0);
+    const blanks = sorted.filter(isBlank);
+    let seq = sorted.length ? Math.max(...sorted.map((f) => f.sequence_number)) + 1 : 1;
+    const updates: PromiseLike<any>[] = [];
+    const inserts: AnyRow[] = [];
+    steps.forEach((s, i) => {
+      d.setDate(d.getDate() + Math.max(0, Number(s.offset_days) || 0));
+      const row = {
+        scheduled_date: d.toISOString(),
+        status: "pending",
+        sent_at: null,
+        channel_id: channelForKind(s.channel_kind),
+        notes: s.label?.trim() || null,
+      };
+      const blank = blanks[i];
+      if (blank) updates.push(supabase.from("lead_followups").update(row as never).eq("id", blank.id));
+      else inserts.push({ lead_id: leadId, sequence_number: seq++, ...row });
+    });
+    const res = await Promise.all([
+      ...updates,
+      ...(inserts.length ? [supabase.from("lead_followups").insert(inserts as never)] : []),
+    ]);
+    const bad = res.find((r: AnyRow) => r.error);
+    if (bad?.error) toast.error(bad.error.message);
+    else toast.success(`Applied "${tpl.name}" from ${base ? "the outreach date" : "today"}`);
+    invalidate();
+  };
+
+  const clearAll = async () => {
+    if (!window.confirm("Clear all follow-ups? Dates, channels, sent marks and notes are removed and the list goes back to 5.")) return;
+    const keep = sorted.filter((f) => f.sequence_number <= 5).map((f) => f.id);
+    const drop = sorted.filter((f) => f.sequence_number > 5).map((f) => f.id);
+    const res = await Promise.all([
+      ...(keep.length
+        ? [
+            supabase
+              .from("lead_followups")
+              .update({ scheduled_date: null, status: "pending", sent_at: null, channel_id: null, notes: null } as never)
+              .in("id", keep),
+          ]
+        : []),
+      ...(drop.length ? [supabase.from("lead_followups").delete().in("id", drop)] : []),
+    ]);
+    const bad = res.find((r: AnyRow) => r.error);
+    if (bad?.error) toast.error(bad.error.message);
+    else toast.success("Follow-ups cleared");
+    invalidate();
+  };
+
+  const remove = async (f: AnyRow) => {
+    if (!isBlank(f) && !window.confirm(`Delete follow-up #${f.sequence_number}?`)) return;
+    const { error } = await supabase.from("lead_followups").delete().eq("id", f.id);
+    if (error) return toast.error(error.message);
+    const after = sorted.filter((x) => x.sequence_number > f.sequence_number);
+    await Promise.all(
+      after.map((x) => supabase.from("lead_followups").update({ sequence_number: x.sequence_number - 1 } as never).eq("id", x.id)),
+    );
+    invalidate();
+  };
+
+  const quick = async (days: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    d.setHours(12, 0, 0, 0);
+    const row = { scheduled_date: d.toISOString(), status: "pending", channel_id: defaultChannelId };
+    const blank = sorted.find(isBlank);
+    const { error } = blank
+      ? await supabase.from("lead_followups").update(row as never).eq("id", blank.id)
+      : await supabase.from("lead_followups").insert({
+          lead_id: leadId,
+          sequence_number: sorted.length ? Math.max(...sorted.map((f) => f.sequence_number)) + 1 : 1,
+          ...row,
+        } as never);
+    if (error) return toast.error(error.message);
+    toast.success(`Follow-up set for ${fmtDate(d.toISOString())}`);
+    invalidate();
+  };
+
+  const hasPending = sorted.some((f) => f.status === "pending" && (f.scheduled_date || f.notes || f.outreach_template_id));
+  const hasSkipped = sorted.some((f) => f.status === "skipped");
+  const stop = async () => {
+    const err = await skipPendingFollowups(leadId);
+    if (err) return toast.error(err.message);
+    toast.success("Follow-ups stopped. Nothing was deleted.");
+    invalidate();
+  };
+  const resume = async () => {
+    const err = await resumeSkippedFollowups(leadId);
+    if (err) return toast.error(err.message);
+    toast.success("Follow-ups resumed");
+    invalidate();
+  };
+  const next = sorted
+    .filter((f) => f.status === "pending" && f.scheduled_date)
+    .map((f) => f.scheduled_date as string)
+    .sort()[0];
+
+  return (
+    <CollapsibleCard
+      id="lead.followups"
+      title="Follow-ups"
+      actions={
+        <span className="text-[12px] text-muted-foreground">
+          {hasSkipped && !hasPending ? "Stopped" : next ? `Next: ${fmtDate(next)}` : "None scheduled"}
+        </span>
+      }
+    >
+      <div className="flex flex-col gap-2">
+        {pauseReason && (
+          <div className="rounded-lg border border-border/80 bg-subtle/50 px-3 py-2 text-[12.5px] text-muted-foreground">
+            {pauseReason === "archived"
+              ? "This lead is archived, so its follow-ups are paused and won't show as due."
+              : `This lead is ${pauseReason}, so its follow-ups are paused and won't show as due. Move it back to an active stage to bring them back.`}
+          </div>
+        )}
+        {hasSkipped && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/80 bg-subtle/50 px-3 py-2 text-[12.5px] text-muted-foreground">
+            <span>Follow-ups for this lead were stopped. They're kept here, faded, and won't show as due.</span>
+            {canEdit && (
+              <Button variant="outline" size="sm" className="h-7 px-2.5 text-[12px]" onClick={() => void resume()}>
+                <CirclePlay className="mr-1 size-3.5" /> Resume follow-ups
+              </Button>
+            )}
+          </div>
+        )}
+        {sorted.map((f) => (
+          <FollowupRow
+            key={f.id}
+            fu={f}
+            channels={channels}
+            canEdit={canEdit}
+            defaultChannelId={defaultChannelId}
+            lead={lead}
+            onChange={(p) => onChange(f.id, p)}
+            onDelete={canEdit && sorted.length > 5 ? () => void remove(f) : undefined}
+          />
+        ))}
+        {canEdit && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[12px] text-muted-foreground">Quick follow-up in</span>
+            {[2, 3, 7].map((n) => (
+              <Button key={n} variant="outline" size="sm" className="h-7 px-2.5 text-[12px]" onClick={() => void quick(n)}>
+                +{n} days
+              </Button>
+            ))}
+          </div>
+        )}
+        {canEdit && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" className="w-fit" onClick={onAdd}>
+              <Plus className="mr-1 size-3.5" /> Add follow-up
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="w-fit" disabled={!templatesQ.data?.length}>
+                  Apply template <ChevronDown className="ml-1 size-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                {(templatesQ.data ?? []).map((t) => (
+                  <DropdownMenuItem key={t.id} onClick={() => void applyTemplate(t)}>
+                    {t.name}
+                    {t.is_default ? " (default)" : ""}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {hasPending && (
+              <Button variant="outline" size="sm" className="ml-auto w-fit" onClick={() => void stop()}>
+                <CirclePause className="mr-1 size-3.5" /> Stop follow-ups
+              </Button>
+            )}
+            <Button variant="outline" size="sm" className={cn("w-fit", !hasPending && "ml-auto")} onClick={() => void clearAll()}>
+              <Eraser className="mr-1 size-3.5" /> Clear all
+            </Button>
+          </div>
+        )}
+      </div>
+    </CollapsibleCard>
+  );
+}
+
+/* ---------- activity ---------- */
+function ActivityCard({
+  events,
+  leadId,
+  canEdit = false,
+  onChanged,
+  onLeadSave,
+}: {
+  events: AnyRow[];
+  leadId: string;
+  lead?: AnyRow;
+  canEdit?: boolean;
+  onChanged: () => void;
+  onLeadSave: (p: AnyRow) => void;
+}) {
+  const [adding, setAdding] = useState(false);
+  const { saveEdit, remove, add } = useEventActions(onChanged);
+  const sorted = [...events].sort((a, b) => b.occurred_at.localeCompare(a.occurred_at));
+  return (
+    <CollapsibleCard
+      id="lead.activity"
+      title="Activity"
+      actions={
+        canEdit && leadId && !adding ? (
+          <Button size="sm" variant="ghost" className="h-7 text-[12px]" onClick={() => setAdding(true)}>
+            <Plus className="size-3.5" /> Add
+          </Button>
+        ) : undefined
+      }
+    >
+      <div className="flex flex-col gap-3">
+        {adding && leadId && (
+          <AddActivityForm
+            leadId={leadId}
+            onCancel={() => setAdding(false)}
+            onAdd={async (v: AnyRow) => {
+              await add(v);
+              setAdding(false);
+            }}
+          />
+        )}
+        {sorted.length === 0 && !adding ? (
+          <EmptyState title="No activity yet" hint="Actions on this lead will appear here." />
+        ) : (
+          sorted.map((e) => (
+            <EventRow
+              key={`${e.id}-${e.occurred_at}-${e.event_type}-${eventMeta(e).label ?? ""}`}
+              e={{ ...e, lead_id: e.lead_id ?? leadId }}
+              canEdit={canEdit}
+              onEdit={(v: AnyRow) => saveEdit(e, v)}
+              onDelete={() => void remove({ ...e, lead_id: e.lead_id ?? leadId }, onLeadSave)}
+            />
+          ))
+        )}
+      </div>
+    </CollapsibleCard>
+  );
+}
+
 const STATUS_LABELS: Record<string, string> = {
   no_reply: "No reply",
   replied: "Replied",
@@ -44,73 +1144,74 @@ const STATUS_LABELS: Record<string, string> = {
   not_interested: "Not interested",
 };
 
-function useSaveIndicator() {
+function useSavedFlash() {
   const [saved, setSaved] = useState<null | "saving" | "saved">(null);
-  const flashSaved = () => {
-    setSaved("saved");
-    setTimeout(() => setSaved(null), 1500);
+  return {
+    saved,
+    setSaved,
+    flashSaved: () => {
+      setSaved("saved");
+      setTimeout(() => setSaved(null), 1500);
+    },
   };
-  return { saved, setSaved, flashSaved };
 }
 
+/* ---------- page ---------- */
 function LeadDetailPage() {
   const { id } = useParams({ from: "/lt/leads/$id" });
-  const { user, can } = useAuth();
-  const canEdit = can("lead.leads");
+  const { user, can, isAdmin } = useAuth() as any;
+  const canEdit: boolean = can("lead.leads");
   const navigate = useNavigate();
   const qc = useQueryClient();
   const companyNameRef = useRef<HTMLInputElement>(null);
-
   const { data: stages } = useStages("lead");
   const { data: countries } = useCountries();
   const { data: channels } = useChannels();
   const { data: senderAccounts } = useSenderAccounts();
   const { data: tags } = useTags();
+  const isNew = id === "new";
+  const creating = useRef(false);
 
-  const creating = id === "new";
-  const createStartedRef = useRef(false);
-
-  // Create-mode: insert a lead, then swap URL.
   useEffect(() => {
-    if (id !== "new" || createStartedRef.current) return;
-    createStartedRef.current = true;
-    (async () => {
-      const { data, error } = await supabase
-        .from("leads")
-        .insert({ company_name: "Untitled lead", created_by: user?.id ?? null } as never)
-        .select("id")
-        .single();
+    if (id !== "new" || creating.current) return;
+    creating.current = true;
+    void (async () => {
+      const { data, error } = await (supabase.rpc as any)("create_lead", {
+        _lead: { company_name: "Untitled lead", created_by: user?.id ?? null },
+        _contacts: [
+          { order_index: 0, is_primary: true },
+          { order_index: 1, is_primary: false },
+        ],
+        _followups: 5,
+      });
       if (error) {
-        createStartedRef.current = false;
+        creating.current = false;
         toast.error(error.message ?? "Failed to create lead");
-        void navigate({ to: "/lt/leads" });
+        navigate({ to: "/lt/leads" });
         return;
       }
       if (data) {
         qc.invalidateQueries({ queryKey: ["leads-table"] });
         qc.invalidateQueries({ queryKey: ["leads-board"] });
-        void navigate({ to: "/lt/leads/$id", params: { id: (data as { id: string }).id }, replace: true });
+        navigate({ to: "/lt/leads/$id", params: { id: data as string }, replace: true });
       }
     })();
   }, [id, user?.id, navigate, qc]);
 
-  const leadQuery = useQuery({
+  const leadQ = useQuery({
     queryKey: ["lead_detail", id],
     enabled: id !== "new",
     queryFn: async () => {
       const { data, error } = await supabase
         .from("leads")
-        .select(
-          "*, lead_contacts(*), lead_links(*), lead_followups(*), lead_tags(tag_id), crm_records(id, estimated_value)",
-        )
+        .select("*, lead_contacts(*), lead_links(*), lead_followups(*), lead_tags(tag_id), crm_records(id, estimated_value)")
         .eq("id", id)
         .maybeSingle();
       if (error) throw error;
-      return data as any;
+      return data as AnyRow | null;
     },
   });
-
-  const eventsQuery = useQuery({
+  const eventsQ = useQuery({
     queryKey: ["lead_events", id],
     enabled: id !== "new",
     queryFn: async () => {
@@ -120,33 +1221,30 @@ function LeadDetailPage() {
         .eq("lead_id", id)
         .order("occurred_at", { ascending: false });
       if (error) throw error;
-      return (data ?? []) as any[];
+      return (data ?? []) as AnyRow[];
     },
   });
-
-  // Neighbour navigation: ordered by date_added desc.
-  const neighboursQuery = useQuery({
+  const neighboursQ = useQuery({
     queryKey: ["lead_neighbours"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("leads")
-        .select("id")
-        .order("date_added", { ascending: false });
+      const { data, error } = await supabase.from("leads").select("id").order("date_added", { ascending: false });
       if (error) throw error;
-      return (data ?? []).map((r) => r.id);
+      return (data ?? []).map((r: AnyRow) => r.id as string);
     },
   });
-
-  const { saved, setSaved, flashSaved } = useSaveIndicator();
-
+  const { saved, setSaved, flashSaved } = useSavedFlash();
   const invalidate = () => qc.invalidateQueries({ queryKey: ["lead_detail", id] });
   const invalidateEvents = () => qc.invalidateQueries({ queryKey: ["lead_events", id] });
 
-  const updateLead = useMutation({
-    mutationFn: async (patch: Record<string, unknown>) => {
+  const save = useMutation({
+    mutationFn: async (patch: AnyRow) => {
       setSaved("saving");
-      const { error } = await supabase.from("leads").update(patch as never).eq("id", id);
+      const p = { ...patch };
+      const advance = "stage_id" in p ? null : autoStageForOutreach(stages, leadQ.data?.stage_id, p);
+      if (advance) p.stage_id = advance.id;
+      const { error } = await supabase.from("leads").update(p as never).eq("id", id);
       if (error) throw error;
+      if (advance) toast.success(`Stage moved to ${advance.name}`);
     },
     onSuccess: () => {
       flashSaved();
@@ -158,75 +1256,82 @@ function LeadDetailPage() {
     },
   });
 
-  // Ensure a single contact exists by default.
+  // Ensure at least 2 contacts
   useEffect(() => {
-    const lead = leadQuery.data;
-    if (!lead) return;
-    const contacts = (lead.lead_contacts ?? []) as LeadContact[];
-    if (contacts.length === 0 && canEdit) {
-      void supabase
+    const l = leadQ.data;
+    if (!l) return;
+    const cs = l.lead_contacts ?? [];
+    if (cs.length === 0 && canEdit)
+      supabase
         .from("lead_contacts")
-        .insert({ lead_id: id, order_index: 0, is_primary: true } as never)
+        .insert([
+          { lead_id: id, order_index: 0, is_primary: true },
+          { lead_id: id, order_index: 1, is_primary: false },
+        ] as never)
         .then(({ error }) => {
           if (!error) invalidate();
         });
-    }
-  }, [leadQuery.data?.id, leadQuery.data?.lead_contacts?.length, canEdit]);
+    else if (cs.length === 1 && canEdit)
+      supabase
+        .from("lead_contacts")
+        .insert({ lead_id: id, order_index: 1, is_primary: false } as never)
+        .then(({ error }) => {
+          if (!error) invalidate();
+        });
+  }, [leadQ.data?.id, leadQ.data?.lead_contacts?.length, canEdit]);
 
-  // Ensure follow-up rows 1..7 exist.
+  // Ensure at least 5 follow-ups
   useEffect(() => {
-    const lead = leadQuery.data;
-    if (!lead || !canEdit) return;
-    const followups = (lead.lead_followups ?? []) as LeadFollowup[];
-    const existingSeq = new Set(followups.map((f) => f.sequence_number));
-    const missing: { lead_id: string; sequence_number: number }[] = [];
-    for (let n = 1; n <= 7; n++) {
-      if (!existingSeq.has(n)) missing.push({ lead_id: id, sequence_number: n });
+    const l = leadQ.data;
+    if (!l || !canEdit) return;
+    const fus: AnyRow[] = l.lead_followups ?? [];
+    const rows: AnyRow[] = [];
+    let seq = fus.length ? Math.max(...fus.map((f) => f.sequence_number)) : 0;
+    for (let i = fus.length; i < 5; i++) {
+      seq += 1;
+      rows.push({ lead_id: id, sequence_number: seq });
     }
-    if (missing.length > 0) {
-      void supabase
+    if (rows.length > 0)
+      supabase
         .from("lead_followups")
-        .insert(missing as never)
+        .insert(rows as never)
         .then(({ error }) => {
           if (!error) invalidate();
         });
-    }
-  }, [leadQuery.data?.id, leadQuery.data?.lead_followups?.length, canEdit]);
+  }, [leadQ.data?.id, leadQ.data?.lead_followups?.length, canEdit]);
 
-  // Keyboard shortcuts.
+  // Keyboard shortcuts: j/k next/prev, e edit name, a archive, p push
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
       if (isTypingTarget(e.target)) return;
-      const ids = neighboursQuery.data ?? [];
-      const idx = ids.indexOf(id);
-      if (e.key.toLowerCase() === "j") {
-        if (idx >= 0 && idx < ids.length - 1) void navigate({ to: "/lt/leads/$id", params: { id: ids[idx + 1] } });
-      } else if (e.key.toLowerCase() === "k") {
-        if (idx > 0) void navigate({ to: "/lt/leads/$id", params: { id: ids[idx - 1] } });
-      } else if (e.key.toLowerCase() === "e") {
+      const ids = neighboursQ.data ?? [];
+      const i = ids.indexOf(id);
+      const k = e.key.toLowerCase();
+      if (k === "j") {
+        if (i >= 0 && i < ids.length - 1) navigate({ to: "/lt/leads/$id", params: { id: ids[i + 1] } });
+      } else if (k === "k") {
+        if (i > 0) navigate({ to: "/lt/leads/$id", params: { id: ids[i - 1] } });
+      } else if (k === "e") {
         e.preventDefault();
         companyNameRef.current?.focus();
-      } else if (e.key.toLowerCase() === "a") {
-        if (leadQuery.data) toggleArchive();
-      } else if (e.key.toLowerCase() === "p") {
-        if (leadQuery.data) pushToCrm.mutate();
+      } else if (k === "a") {
+        if (leadQ.data) toggleArchive();
+      } else if (k === "p") {
+        if (leadQ.data) push.mutate();
       }
     };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [neighboursQuery.data, id, leadQuery.data]);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [neighboursQ.data, id, leadQ.data]);
 
-  const pushToCrm = useMutation({
+  const push = useMutation({
     mutationFn: async () => {
-      const sentiment = (leadQuery.data as any)?.reply_sentiment;
-      if (sentiment !== "positive") {
-        const ok = window.confirm(
-          "This lead does not have a positive reply. Only positive replies normally go to the CRM. Push it anyway?",
-        );
-        if (!ok) return;
-      }
-      const { error } = await supabase.rpc("ensure_crm_record", { _lead_id: id });
+      if (
+        leadQ.data?.reply_sentiment !== "positive" &&
+        !window.confirm("This lead does not have a positive reply. Only positive replies normally go to the CRM. Push it anyway?")
+      )
+        return;
+      const { error } = await (supabase.rpc as any)("ensure_crm_record", { _lead_id: id });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -237,33 +1342,41 @@ function LeadDetailPage() {
   });
 
   const toggleArchive = () => {
-    const lead = leadQuery.data;
-    if (!lead) return;
-    updateLead.mutate({
-      archived: !lead.archived,
-      archived_at: !lead.archived ? new Date().toISOString() : null,
-    });
+    const l = leadQ.data;
+    if (l) save.mutate({ archived: !l.archived, archived_at: l.archived ? null : new Date().toISOString() });
   };
 
-  if (id === "new" || creating) {
+  const deleteLead = async () => {
+    const l = leadQ.data;
+    if (!l) return;
+    const extra = l.pushed_to_crm ? "\n\nIts CRM record will be deleted too." : "";
+    if (!window.confirm(`Delete "${l.company_name}" permanently? This cannot be undone.${extra}`)) return;
+    const { data, error } = await supabase.from("leads").delete().eq("id", id).select("id");
+    if (error) return toast.error(error.message ?? "Could not delete the lead");
+    if (!data?.length) return toast.error("Only admins can delete leads.");
+    toast.success("Lead deleted");
+    qc.invalidateQueries({ queryKey: ["leads-table"] });
+    qc.invalidateQueries({ queryKey: ["leads-board"] });
+    qc.invalidateQueries({ queryKey: ["rapid-today"] });
+    if (window.history.length > 1) window.history.back();
+    else navigate({ to: "/lt/leads" });
+  };
+
+  // TODO(live parity): live AppPage takes heading={false} and guide="lead-page"; repo AppPage does not.
+  if (id === "new" || isNew)
     return (
       <AppPage module="lead" title="New lead" perm="lead.leads">
         <Loading label="Creating lead" />
       </AppPage>
     );
-  }
-
-  if (leadQuery.isLoading) {
+  if (leadQ.isLoading)
     return (
       <AppPage module="lead" title="Lead" perm="lead.leads">
         <Loading />
       </AppPage>
     );
-  }
-
-  const lead = leadQuery.data;
-
-  if (!lead) {
+  const lead = leadQ.data;
+  if (!lead)
     return (
       <AppPage module="lead" title="Lead" perm="lead.leads">
         <EmptyState
@@ -277,123 +1390,100 @@ function LeadDetailPage() {
         />
       </AppPage>
     );
-  }
 
-  const contacts = ((lead.lead_contacts ?? []) as LeadContact[]).sort((a, b) => a.order_index - b.order_index);
-  const links = ((lead.lead_links ?? []) as LeadLink[]).sort((a, b) => a.order_index - b.order_index);
-  const followups = (lead.lead_followups ?? []) as LeadFollowup[];
-  const leadTagIds = new Set(((lead.lead_tags ?? []) as { tag_id: string }[]).map((t) => t.tag_id));
-  const crmRecord = lead.crm_records as { id: string; estimated_value: number | null } | null;
+  const contacts = [...(lead.lead_contacts ?? [])].sort((a: AnyRow, b: AnyRow) => a.order_index - b.order_index);
+  const links = [...(lead.lead_links ?? [])].sort((a: AnyRow, b: AnyRow) => a.order_index - b.order_index);
+  const followups: AnyRow[] = lead.lead_followups ?? [];
+  const leadTagIds = new Set<string>((lead.lead_tags ?? []).map((t: AnyRow) => t.tag_id));
+  const crmRecord = lead.crm_records;
+  const onSave = (p: AnyRow) => save.mutate(p);
+  const done = ({ error }: { error: any }) => (error ? toast.error(error.message) : invalidate());
 
   return (
-    <AppPage
-      module="lead"
-      title={lead.company_name}
-      perm="lead.leads"
-      actions={<SavedIndicator saved={saved} />}
-    >
-      <HeaderCard
+    <AppPage module="lead" title={lead.company_name} perm="lead.leads" actions={<SavedIndicator saved={saved} />}>
+      <LeadHeader
         lead={lead}
-        stages={stages ?? []}
+        stages={(stages ?? []) as AnyRow[]}
         canEdit={canEdit}
-        onSave={(p) => updateLead.mutate(p)}
-        onPush={() => pushToCrm.mutate()}
-        pushing={pushToCrm.isPending}
+        onSave={onSave}
+        onPush={() => push.mutate()}
+        pushing={push.isPending}
         crmRecord={crmRecord}
         onToggleArchive={toggleArchive}
+        onDelete={isAdmin ? deleteLead : undefined}
         companyNameRef={companyNameRef}
+        channels={(channels ?? []) as AnyRow[]}
       />
-
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[65%_35%]">
         <div className="flex flex-col gap-4">
           <CompanyCard
             lead={lead}
-            countries={countries ?? []}
-            channels={channels ?? []}
-            senderAccounts={senderAccounts ?? []}
+            countries={(countries ?? []) as AnyRow[]}
+            channels={(channels ?? []) as AnyRow[]}
+            senderAccounts={(senderAccounts ?? []) as AnyRow[]}
             links={links}
             canEdit={canEdit}
-            onSave={(p) => updateLead.mutate(p)}
+            onSave={onSave}
             invalidate={invalidate}
             leadId={id}
           />
           <PeopleCard
             contacts={contacts}
             canEdit={canEdit}
-            onChange={(contactId, patch) => {
-              void supabase
-                .from("lead_contacts")
-                .update(patch as never)
-                .eq("id", contactId)
-                .then(({ error }) => {
-                  if (error) toast.error(error.message);
-                  else invalidate();
-                });
+            onChange={(cid, p) => {
+              supabase.from("lead_contacts").update(p as never).eq("id", cid).then(done);
             }}
             onAdd={() => {
-              void supabase
+              supabase
                 .from("lead_contacts")
                 .insert({ lead_id: id, order_index: contacts.length, is_primary: contacts.length === 0 } as never)
-                .then(({ error }) => {
-                  if (error) toast.error(error.message);
-                  else invalidate();
-                });
+                .then(done);
             }}
-            onRemove={(contactId) => {
-              void supabase
-                .from("lead_contacts")
-                .delete()
-                .eq("id", contactId)
-                .then(({ error }) => {
-                  if (error) toast.error(error.message);
-                  else invalidate();
-                });
+            onRemove={(cid) => {
+              supabase.from("lead_contacts").delete().eq("id", cid).then(done);
             }}
           />
-          {lead.pushed_to_crm && <LeadTasksCard leadId={id} canEdit={canEdit} />}
-          <NotesCard lead={lead} canEdit={canEdit} onSave={(p) => updateLead.mutate(p)} />
-          <EmailCard lead={lead} canEdit={canEdit} onSave={(p) => updateLead.mutate(p)} />
-          <LoomCard lead={lead} canEdit={canEdit} onSave={(p) => updateLead.mutate(p)} />
+          <LeadTasksCard leadId={id} canEdit={canEdit} />
+          <NotesCard lead={lead} canEdit={canEdit} onSave={onSave} />
+          <EmailCard lead={lead} canEdit={canEdit} onSave={onSave} />
+          <LoomCard lead={lead} canEdit={canEdit} onSave={onSave} />
           <FollowupsCard
             followups={followups}
-            channels={channels ?? []}
+            channels={(channels ?? []) as AnyRow[]}
             canEdit={canEdit}
             leadId={id}
             lastContactedAt={lead.last_contacted_at}
+            outreachAt={
+              [lead.email_sent_at, lead.linkedin_sent_at, lead.instagram_sent_at, lead.linkedin_connection_sent_at]
+                .filter(Boolean)
+                .sort()[0] ?? null
+            }
+            defaultChannelId={lead.contacted_channel_id ?? lead.channel_id ?? null}
+            lead={{ name: lead.primary_contact, company: lead.company_name }}
+            pauseReason={followupPauseReason(lead, stages)}
             invalidate={invalidate}
-            onChange={(fid, patch) => {
-              void supabase
-                .from("lead_followups")
-                .update(patch as never)
-                .eq("id", fid)
-                .then(({ error }) => {
-                  if (error) toast.error(error.message);
-                  else invalidate();
-                });
+            onChange={(fid, p) => {
+              supabase.from("lead_followups").update(p as never).eq("id", fid).then(done);
             }}
             onAdd={() => {
-              const nextSeq = followups.length > 0 ? Math.max(...followups.map((f) => f.sequence_number)) + 1 : 1;
-              void supabase
-                .from("lead_followups")
-                .insert({ lead_id: id, sequence_number: nextSeq } as never)
-                .then(({ error }) => {
-                  if (error) toast.error(error.message);
-                  else invalidate();
-                });
+              const seq = followups.length > 0 ? Math.max(...followups.map((f) => f.sequence_number)) + 1 : 1;
+              supabase.from("lead_followups").insert({ lead_id: id, sequence_number: seq } as never).then(done);
             }}
           />
-          <OtherChannelsCard lead={lead} channels={channels ?? []} canEdit={canEdit} onSave={(p) => updateLead.mutate(p)} />
-          <OutcomeCard
-            lead={lead}
-            canEdit={canEdit}
-            onSave={(p) => updateLead.mutate(p)}
-            leadId={id}
-            crmRecord={crmRecord}
-          />
-          <TagsCard tags={tags ?? []} leadTagIds={leadTagIds} canEdit={canEdit} leadId={id} invalidate={invalidate} />
+          <OutreachCard lead={lead} channels={(channels ?? []) as AnyRow[]} canEdit={canEdit} onSave={onSave} />
+          <OutcomeCard lead={lead} canEdit={canEdit} onSave={onSave} leadId={id} crmRecord={crmRecord} />
+          <TagsCard tags={(tags ?? []) as AnyRow[]} leadTagIds={leadTagIds} canEdit={canEdit} leadId={id} invalidate={invalidate} />
         </div>
         <div className="flex flex-col gap-4">
-          <ActivityFeed events={eventsQuery.data ?? []} />
+          <ActivityCard
+            events={eventsQ.data ?? []}
+            leadId={id}
+            lead={lead}
+            canEdit={isAdmin || can("lead.lead_edit")}
+            onChanged={invalidateEvents}
+            onLeadSave={onSave}
+          />
+          <PersonalizedMessageCard lead={lead} canEdit={canEdit} onSave={onSave} />
         </div>
       </div>
     </AppPage>
@@ -405,7 +1495,7 @@ function SavedIndicator({ saved }: { saved: null | "saving" | "saved" }) {
   return <span className="text-[12px] text-muted-foreground">{saved === "saving" ? "Saving..." : "Saved"}</span>;
 }
 
-function HeaderCard({
+function LeadHeader({
   lead,
   stages,
   canEdit,
@@ -414,22 +1504,32 @@ function HeaderCard({
   pushing,
   crmRecord,
   onToggleArchive,
+  onDelete,
   companyNameRef,
+  channels,
 }: {
-  lead: any;
-  stages: any[];
+  lead: AnyRow;
+  stages: AnyRow[];
   canEdit: boolean;
-  onSave: (p: Record<string, unknown>) => void;
+  onSave: (p: AnyRow) => void;
   onPush: () => void;
   pushing: boolean;
-  crmRecord: { id: string; estimated_value: number | null } | null;
+  crmRecord: AnyRow | null;
   onToggleArchive: () => void;
-  companyNameRef: React.RefObject<HTMLInputElement | null>;
+  onDelete?: () => void;
+  companyNameRef: RefObject<HTMLInputElement | null>;
+  channels: AnyRow[];
 }) {
   const [name, setName] = useState(lead.company_name ?? "");
-  const [wonTarget, setWonTarget] = useState<{ stage_id?: string; status?: string } | null>(null);
   useEffect(() => setName(lead.company_name ?? ""), [lead.id]);
-
+  const [pending, setPending] = useState<{ mode: GapMode; stageId: string | null } | null>(null);
+  const gap = stageGap(lead, stages);
+  const onStage = (sid: string) => {
+    const s = stages.find((x) => x.id === sid);
+    if (isReplyStage(s) && !hasReply(lead)) return setPending({ mode: "reply", stageId: sid });
+    if (isContactStage(s) && !hasContact(lead)) return setPending({ mode: "contact", stageId: sid });
+    onSave({ stage_id: sid });
+  };
   const lastActivity =
     [
       lead.email_replied_at,
@@ -448,30 +1548,22 @@ function HeaderCard({
       .pop() ?? lead.updated_at;
 
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
+    <div className="pro-card p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex flex-1 flex-col gap-2">
+        <div className="flex min-w-0 flex-1 basis-[300px] flex-col gap-3">
           <div className="flex flex-wrap items-center gap-2">
             <Input
               ref={companyNameRef}
-              className="h-8 max-w-[320px] text-[15px] font-medium"
+              className="-ml-2 h-10 w-full min-w-0 max-w-[420px] border-transparent bg-transparent px-2 text-[22px] font-semibold tracking-tight shadow-none hover:bg-subtle focus-visible:bg-surface md:text-[22px]"
               value={name}
               disabled={!canEdit}
               onChange={(e) => setName(e.target.value)}
               onBlur={() => name.trim() && name !== lead.company_name && onSave({ company_name: name.trim() })}
             />
-            <span className="text-[12px] text-muted-foreground">{lead.lead_code}</span>
+            <span className="font-mono text-[11.5px] text-faint">{lead.lead_code}</span>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Select
-              value={lead.stage_id ?? undefined}
-              disabled={!canEdit}
-              onValueChange={(v) => {
-                const stage = stages.find((s) => s.id === v);
-                if (stage?.is_won) setWonTarget({ stage_id: v });
-                else onSave({ stage_id: v });
-              }}
-            >
+            <Select value={lead.stage_id ?? undefined} disabled={!canEdit} onValueChange={onStage}>
               <SelectTrigger className="h-8 w-[150px] text-[13px]">
                 <SelectValue placeholder="Stage" />
               </SelectTrigger>
@@ -483,14 +1575,7 @@ function HeaderCard({
                 ))}
               </SelectContent>
             </Select>
-            <Select
-              value={lead.status}
-              disabled={!canEdit}
-              onValueChange={(v) => {
-                if (v === "won") setWonTarget({ status: "won" });
-                else onSave({ status: v });
-              }}
-            >
+            <Select value={lead.status} disabled={!canEdit} onValueChange={(v) => onSave({ status: v })}>
               <SelectTrigger className="h-8 w-[150px] text-[13px]">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
@@ -514,7 +1599,7 @@ function HeaderCard({
                 ))}
               </SelectContent>
             </Select>
-            <StagePill stage={stages.find((s) => s.id === lead.stage_id)} />
+            <StagePill stage={stages.find((s) => s.id === lead.stage_id) as any} />
             {lead.pushed_to_crm && crmRecord ? (
               <Link to="/crm/records/$id" params={{ id: crmRecord.id }}>
                 <Pill tone="positive">
@@ -529,134 +1614,52 @@ function HeaderCard({
               )
             )}
             {canEdit && (
-              <Button variant="ghost" size="icon" className="size-7" onClick={onToggleArchive} title={lead.archived ? "Restore" : "Archive"}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7"
+                onClick={onToggleArchive}
+                title={lead.archived ? "Restore" : "Archive"}
+              >
                 {lead.archived ? <ArchiveRestore className="size-4" /> : <Archive className="size-4" />}
+              </Button>
+            )}
+            {onDelete && (
+              <Button variant="ghost" size="icon" className="size-7" onClick={onDelete} title="Delete lead permanently">
+                <Trash2 className="size-4 text-negative" />
               </Button>
             )}
           </div>
         </div>
-        <div className="flex flex-col items-end gap-1 text-[12px] text-muted-foreground">
+        <div className="flex flex-col items-start gap-1 text-[12px] text-muted-foreground sm:items-end">
           <div>Created {fmtDate(lead.created_at)}</div>
           <div>Last activity {fmtDate(lastActivity)}</div>
+          <GapWarning gap={gap} canEdit={canEdit} onLog={() => gap && setPending({ mode: gap, stageId: null })} />
         </div>
+        <ChannelPickDialog
+          mode={pending?.mode ?? null}
+          stageName={pending?.stageId ? stages.find((s) => s.id === pending.stageId)?.name : null}
+          onClose={() => setPending(null)}
+          onSkip={
+            pending?.stageId
+              ? () => {
+                  onSave({ stage_id: pending.stageId });
+                  setPending(null);
+                }
+              : undefined
+          }
+          onPick={(field) => {
+            if (!pending) return;
+            onSave({ ...(pending.stageId ? { stage_id: pending.stageId } : {}), ...gapPatch(pending.mode, field, channels ?? []) });
+            setPending(null);
+          }}
+        />
       </div>
-
-      <WonDialog
-        open={!!wonTarget}
-        leadId={lead.id}
-        onCancel={() => setWonTarget(null)}
-        onConfirm={(details) => {
-          const target = wonTarget ?? {};
-          setWonTarget(null);
-          onSave({
-            ...target,
-            status: "won",
-            meeting_booked: true,
-            meeting_booked_at: details.callBookedAt ?? new Date().toISOString(),
-            client_closed: true,
-            client_closed_at: details.closedAt ?? new Date().toISOString(),
-          });
-        }}
-      />
     </div>
   );
 }
 
-function WonDialog({
-  open,
-  leadId,
-  onCancel,
-  onConfirm,
-}: {
-  open: boolean;
-  leadId: string;
-  onCancel: () => void;
-  onConfirm: (details: { callBookedAt: string | null; closedAt: string | null }) => void;
-}) {
-  const [callBooked, setCallBooked] = useState("");
-  const [closeDate, setCloseDate] = useState(toDateInput(new Date().toISOString()));
-  const [value, setValue] = useState("");
-  const [mrr, setMrr] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (open) {
-      setCallBooked("");
-      setCloseDate(toDateInput(new Date().toISOString()));
-      setValue("");
-      setMrr("");
-    }
-  }, [open]);
-
-  const submit = async () => {
-    setSaving(true);
-    const closedAt = closeDate ? new Date(closeDate + "T12:00:00").toISOString() : null;
-    try {
-      const { error: rpcError } = await supabase.rpc("ensure_crm_record", { _lead_id: leadId });
-      if (rpcError) throw rpcError;
-      const { data: rec } = await supabase.from("crm_records").select("id").eq("lead_id", leadId).maybeSingle();
-      if (rec?.id) {
-        const patch: Record<string, unknown> = {};
-        if (value.trim() !== "" && !Number.isNaN(Number(value))) patch['estimated_value'] = Number(value);
-        if (mrr.trim() !== "" && !Number.isNaN(Number(mrr))) {
-          patch['mrr_amount'] = Number(mrr);
-          patch['deal_type'] = "retainer";
-        }
-        if (closedAt) patch['closed_at'] = closedAt;
-        if (Object.keys(patch).length > 0) {
-          const { error } = await supabase.from("crm_records").update(patch as never).eq("id", rec.id);
-          if (error) throw error;
-        }
-      }
-    } catch (e: any) {
-      toast.error(e?.message ?? "Failed to save deal details");
-    } finally {
-      setSaving(false);
-    }
-    onConfirm({
-      callBookedAt: callBooked ? new Date(callBooked + "T12:00:00").toISOString() : null,
-      closedAt,
-    });
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={(v) => !v && onCancel()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Closing this deal</DialogTitle>
-        </DialogHeader>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div>
-            <div className="label-text mb-1">When was the call booked</div>
-            <Input type="date" className="h-8 text-[13px]" value={callBooked} onChange={(e) => setCallBooked(e.target.value)} />
-          </div>
-          <div>
-            <div className="label-text mb-1">Closing date</div>
-            <Input type="date" className="h-8 text-[13px]" value={closeDate} onChange={(e) => setCloseDate(e.target.value)} />
-          </div>
-          <div>
-            <div className="label-text mb-1">Deal value</div>
-            <Input type="number" className="h-8 text-[13px]" value={value} onChange={(e) => setValue(e.target.value)} />
-          </div>
-          <div>
-            <div className="label-text mb-1">Monthly amount (MRR)</div>
-            <Input type="number" className="h-8 text-[13px]" value={mrr} onChange={(e) => setMrr(e.target.value)} />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onCancel} disabled={saving}>
-            Cancel
-          </Button>
-          <Button onClick={submit} disabled={saving}>
-            Save and close deal
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function LabeledField({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
       <div className="label-text mb-1">{label}</div>
@@ -676,13 +1679,13 @@ function CompanyCard({
   invalidate,
   leadId,
 }: {
-  lead: any;
-  countries: any[];
-  channels: any[];
-  senderAccounts: any[];
-  links: LeadLink[];
+  lead: AnyRow;
+  countries: AnyRow[];
+  channels: AnyRow[];
+  senderAccounts: AnyRow[];
+  links: AnyRow[];
   canEdit: boolean;
-  onSave: (p: Record<string, unknown>) => void;
+  onSave: (p: AnyRow) => void;
   invalidate: () => void;
   leadId: string;
 }) {
@@ -690,7 +1693,6 @@ function CompanyCard({
   const [companyLinkedin, setCompanyLinkedin] = useState(lead.company_linkedin_url ?? "");
   const [instagram, setInstagram] = useState(lead.instagram_url ?? "");
   const [youtube, setYoutube] = useState(lead.youtube_url ?? "");
-
   useEffect(() => {
     setWebsite(lead.website_url ?? "");
     setCompanyLinkedin(lead.company_linkedin_url ?? "");
@@ -698,10 +1700,21 @@ function CompanyCard({
     setYoutube(lead.youtube_url ?? "");
   }, [lead.id]);
 
+  const urlBlur =
+    (kind: "website" | "linkedin" | "instagram", value: string, set: (v: string) => void, field: string, dupKey: string) =>
+    () => {
+      const v = normalizeForChannel(kind, value);
+      set(v);
+      if (v !== (lead[field] ?? "")) {
+        onSave({ [field]: v || null });
+        if (v) void warnDuplicate({ [dupKey]: v }, leadId);
+      }
+    };
+
   return (
     <CollapsibleCard id="lead.company" title="Company">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <LabeledField label="Country">
+        <Field label="Country">
           <Select value={lead.country_id ?? undefined} disabled={!canEdit} onValueChange={(v) => onSave({ country_id: v })}>
             <SelectTrigger className="h-8 text-[13px]">
               <SelectValue placeholder="Country" />
@@ -714,22 +1727,29 @@ function CompanyCard({
               ))}
             </SelectContent>
           </Select>
-        </LabeledField>
-        <LabeledField label="Date added">
-          <Input
-            type="date"
-            className="h-8 text-[13px]"
+        </Field>
+        <Field label="Date added">
+          <DatePicker
+            className="w-full text-[13px]"
             disabled={!canEdit}
-            defaultValue={toDateInput(lead.date_added)}
-            onBlur={(e) => {
-              if (!e.target.value) return;
-              const v = new Date(e.target.value + "T12:00:00").toISOString();
-              if (v !== lead.date_added) onSave({ date_added: v });
+            value={toDateInput(lead.date_added) || undefined}
+            onChange={(v: string) => {
+              if (!v) return;
+              const iso = new Date(v + "T12:00:00").toISOString();
+              if (iso !== lead.date_added) onSave({ date_added: iso });
             }}
+            placeholder="Date added"
           />
-        </LabeledField>
-        <LabeledField label="Channel">
-          <Select value={lead.channel_id ?? undefined} disabled={!canEdit} onValueChange={(v) => onSave({ channel_id: v })}>
+        </Field>
+        <Field label="Channel">
+          <Select
+            value={lead.channel_id ?? undefined}
+            disabled={!canEdit}
+            onValueChange={(v) => {
+              const sa = senderAccounts.find((s) => s.id === lead.sender_account_id);
+              onSave({ channel_id: v, ...(sa && sa.channel_id !== v ? { sender_account_id: null } : {}) });
+            }}
+          >
             <SelectTrigger className="h-8 text-[13px]">
               <SelectValue placeholder="Channel" />
             </SelectTrigger>
@@ -741,59 +1761,71 @@ function CompanyCard({
               ))}
             </SelectContent>
           </Select>
-        </LabeledField>
-        <LabeledField label="Sender account">
-          <Select value={lead.sender_account_id ?? undefined} disabled={!canEdit} onValueChange={(v) => onSave({ sender_account_id: v })}>
-            <SelectTrigger className="h-8 text-[13px]">
-              <SelectValue placeholder="Sender account" />
-            </SelectTrigger>
-            <SelectContent>
-              {senderAccounts.map((s) => (
-                <SelectItem key={s.id} value={s.id}>
-                  {s.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </LabeledField>
-        <LabeledField label="Website">
-          <Input
+        </Field>
+        <Field label="Sender account">
+          <div title={lead.channel_id ? undefined : "Please select the lead channel first to see the sender account."}>
+            <Select
+              value={lead.sender_account_id ?? undefined}
+              disabled={!canEdit || !lead.channel_id}
+              onValueChange={(v) => onSave({ sender_account_id: v })}
+            >
+              <SelectTrigger className="h-8 text-[13px]">
+                <SelectValue placeholder="Sender account" />
+              </SelectTrigger>
+              <SelectContent>
+                {senderAccounts
+                  .filter((s) => s.channel_id === lead.channel_id)
+                  .map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.label}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+            {!lead.channel_id && (
+              <div className="mt-1 text-[11px] leading-4 text-muted-foreground">
+                Please select the lead channel first to see the sender account.
+              </div>
+            )}
+          </div>
+        </Field>
+        <Field label="Website">
+          <LinkInput
             className="h-8 text-[13px]"
             value={website}
             disabled={!canEdit}
             onChange={(e) => setWebsite(e.target.value)}
-            onBlur={() => website !== (lead.website_url ?? "") && onSave({ website_url: website || null })}
+            onBlur={urlBlur("website", website, setWebsite, "website_url", "website")}
           />
-        </LabeledField>
-        <LabeledField label="Company LinkedIn">
-          <Input
+        </Field>
+        <Field label="Company LinkedIn">
+          <LinkInput
             className="h-8 text-[13px]"
             value={companyLinkedin}
             disabled={!canEdit}
             onChange={(e) => setCompanyLinkedin(e.target.value)}
-            onBlur={() => companyLinkedin !== (lead.company_linkedin_url ?? "") && onSave({ company_linkedin_url: companyLinkedin || null })}
+            onBlur={urlBlur("linkedin", companyLinkedin, setCompanyLinkedin, "company_linkedin_url", "linkedin")}
           />
-        </LabeledField>
-        <LabeledField label="Instagram">
-          <Input
+        </Field>
+        <Field label="Instagram">
+          <LinkInput
             className="h-8 text-[13px]"
             value={instagram}
             disabled={!canEdit}
             onChange={(e) => setInstagram(e.target.value)}
-            onBlur={() => instagram !== (lead.instagram_url ?? "") && onSave({ instagram_url: instagram || null })}
+            onBlur={urlBlur("instagram", instagram, setInstagram, "instagram_url", "instagram")}
           />
-        </LabeledField>
-        <LabeledField label="YouTube">
-          <Input
+        </Field>
+        <Field label="YouTube">
+          <LinkInput
             className="h-8 text-[13px]"
             value={youtube}
             disabled={!canEdit}
             onChange={(e) => setYoutube(e.target.value)}
             onBlur={() => youtube !== (lead.youtube_url ?? "") && onSave({ youtube_url: youtube || null })}
           />
-        </LabeledField>
+        </Field>
       </div>
-
       <div className="mt-4">
         <div className="label-text mb-2">Links</div>
         <div className="flex flex-col gap-2">
@@ -806,13 +1838,10 @@ function CompanyCard({
               size="sm"
               className="w-fit"
               onClick={() => {
-                void supabase
+                supabase
                   .from("lead_links")
                   .insert({ lead_id: leadId, order_index: links.length, label: "", url: "" } as never)
-                  .then(({ error }) => {
-                    if (error) toast.error(error.message);
-                    else invalidate();
-                  });
+                  .then(({ error }) => (error ? toast.error(error.message) : invalidate()));
               }}
             >
               <Plus className="mr-1 size-3.5" /> Add link
@@ -824,25 +1853,20 @@ function CompanyCard({
   );
 }
 
-function LinkRow({ link, canEdit, invalidate }: { link: LeadLink; canEdit: boolean; invalidate: () => void }) {
+function LinkRow({ link, canEdit, invalidate }: { link: AnyRow; canEdit: boolean; invalidate: () => void }) {
   const [label, setLabel] = useState(link.label ?? "");
   const [url, setUrl] = useState(link.url ?? "");
   useEffect(() => {
     setLabel(link.label ?? "");
     setUrl(link.url ?? "");
   }, [link.id]);
-
-  const save = (patch: Record<string, unknown>) => {
-    void supabase
+  const update = (p: AnyRow) => {
+    supabase
       .from("lead_links")
-      .update(patch as never)
+      .update(p as never)
       .eq("id", link.id)
-      .then(({ error }) => {
-        if (error) toast.error(error.message);
-        else invalidate();
-      });
+      .then(({ error }) => (error ? toast.error(error.message) : invalidate()));
   };
-
   return (
     <div className="flex items-center gap-2">
       <Input
@@ -851,15 +1875,16 @@ function LinkRow({ link, canEdit, invalidate }: { link: LeadLink; canEdit: boole
         value={label}
         disabled={!canEdit}
         onChange={(e) => setLabel(e.target.value)}
-        onBlur={() => label !== (link.label ?? "") && save({ label: label || null })}
+        onBlur={() => label !== (link.label ?? "") && update({ label: label || null })}
       />
-      <Input
+      <LinkInput
         placeholder="URL"
-        className="h-8 flex-1 text-[13px]"
+        wrapperClassName="flex-1"
+        className="h-8 text-[13px]"
         value={url}
         disabled={!canEdit}
         onChange={(e) => setUrl(e.target.value)}
-        onBlur={() => url !== (link.url ?? "") && save({ url: url || null })}
+        onBlur={() => url !== (link.url ?? "") && update({ url: url || null })}
       />
       {canEdit && (
         <Button
@@ -867,14 +1892,11 @@ function LinkRow({ link, canEdit, invalidate }: { link: LeadLink; canEdit: boole
           size="icon"
           className="size-7"
           onClick={() => {
-            void supabase
+            supabase
               .from("lead_links")
               .delete()
               .eq("id", link.id)
-              .then(({ error }) => {
-                if (error) toast.error(error.message);
-                else invalidate();
-              });
+              .then(({ error }) => (error ? toast.error(error.message) : invalidate()));
           }}
         >
           <Trash2 className="size-3.5" />
@@ -884,14 +1906,13 @@ function LinkRow({ link, canEdit, invalidate }: { link: LeadLink; canEdit: boole
   );
 }
 
-function NotesCard({ lead, canEdit, onSave }: { lead: any; canEdit: boolean; onSave: (p: Record<string, unknown>) => void }) {
+function NotesCard({ lead, canEdit, onSave }: { lead: AnyRow; canEdit: boolean; onSave: (p: AnyRow) => void }) {
   const [research, setResearch] = useState(lead.research_notes ?? "");
   const [additional, setAdditional] = useState(lead.additional_notes ?? "");
   useEffect(() => {
     setResearch(lead.research_notes ?? "");
     setAdditional(lead.additional_notes ?? "");
   }, [lead.id]);
-
   return (
     <CollapsibleCard id="lead.notes" title="Research and notes">
       <div className="flex flex-col gap-4">
@@ -920,12 +1941,11 @@ function NotesCard({ lead, canEdit, onSave }: { lead: any; canEdit: boolean; onS
   );
 }
 
-function EmailCard({ lead, canEdit, onSave }: { lead: any; canEdit: boolean; onSave: (p: Record<string, unknown>) => void }) {
-  const summaryParts: string[] = [];
-  if (lead.email_sent) summaryParts.push(`Sent ${fmtDate(lead.email_sent_at)}`);
-  if (lead.email_viewed) summaryParts.push(`Viewed ${fmtDate(lead.email_viewed_at)}`);
-  if (lead.email_replied) summaryParts.push(`Replied ${fmtDate(lead.email_replied_at)}`);
-
+function EmailCard({ lead, canEdit, onSave }: { lead: AnyRow; canEdit: boolean; onSave: (p: AnyRow) => void }) {
+  const parts: string[] = [];
+  if (lead.email_sent) parts.push(`Sent ${fmtDate(lead.email_sent_at)}`);
+  if (lead.email_viewed) parts.push(`Viewed ${fmtDate(lead.email_viewed_at)}`);
+  if (lead.email_replied) parts.push(`Replied ${fmtDate(lead.email_replied_at)}`);
   return (
     <CollapsibleCard id="lead.email" title="Email">
       <div className="flex flex-col gap-1">
@@ -934,31 +1954,27 @@ function EmailCard({ lead, canEdit, onSave }: { lead: any; canEdit: boolean; onS
           checked={lead.email_sent}
           date={lead.email_sent_at}
           disabled={!canEdit}
-          onChange={(checked, date) => onSave({ email_sent: checked, email_sent_at: date })}
+          onChange={(c: boolean, d: string | null) => onSave({ email_sent: c, email_sent_at: d })}
         />
         <CheckDate
           label="Email viewed"
           checked={lead.email_viewed}
           date={lead.email_viewed_at}
           disabled={!canEdit}
-          onChange={(checked, date) => onSave({ email_viewed: checked, email_viewed_at: date })}
+          onChange={(c: boolean, d: string | null) => onSave({ email_viewed: c, email_viewed_at: d })}
         />
         <CheckDate
           label="Email replied"
           checked={lead.email_replied}
           date={lead.email_replied_at}
           disabled={!canEdit}
-          onChange={(checked, date) => onSave({ email_replied: checked, email_replied_at: date })}
+          onChange={(c: boolean, d: string | null) => onSave({ email_replied: c, email_replied_at: d })}
         />
         <div className={lead.email_replied && !lead.reply_sentiment ? "rounded-md border border-warning p-2" : ""}>
           <div className="label-text mb-1">
             Reply sentiment {lead.email_replied && <span className="text-warning">(required)</span>}
           </div>
-          <Select
-            value={lead.reply_sentiment ?? undefined}
-            disabled={!canEdit}
-            onValueChange={(v) => onSave({ reply_sentiment: v })}
-          >
+          <Select value={lead.reply_sentiment ?? undefined} disabled={!canEdit} onValueChange={(v) => onSave({ reply_sentiment: v })}>
             <SelectTrigger className="h-8 w-[180px] text-[13px]">
               <SelectValue placeholder="Sentiment" />
             </SelectTrigger>
@@ -971,21 +1987,20 @@ function EmailCard({ lead, canEdit, onSave }: { lead: any; canEdit: boolean; onS
             </SelectContent>
           </Select>
         </div>
-        {summaryParts.length > 0 && <div className="mt-1 text-[12px] text-muted-foreground">{summaryParts.join(" · ")}</div>}
+        {parts.length > 0 && <div className="mt-1 text-[12px] text-muted-foreground">{parts.join(" · ")}</div>}
         <div className="label-text mt-1">{MANUAL_HELPER}</div>
       </div>
     </CollapsibleCard>
   );
 }
 
-function LoomCard({ lead, canEdit, onSave }: { lead: any; canEdit: boolean; onSave: (p: Record<string, unknown>) => void }) {
+function LoomCard({ lead, canEdit, onSave }: { lead: AnyRow; canEdit: boolean; onSave: (p: AnyRow) => void }) {
   const [url, setUrl] = useState(lead.loom_url ?? "");
   const [pct, setPct] = useState(String(lead.loom_watch_percent ?? ""));
   useEffect(() => {
     setUrl(lead.loom_url ?? "");
     setPct(String(lead.loom_watch_percent ?? ""));
   }, [lead.id]);
-
   return (
     <CollapsibleCard id="lead.loom" title="Loom">
       <div className="flex flex-col gap-3">
@@ -1011,14 +2026,14 @@ function LoomCard({ lead, canEdit, onSave }: { lead: any; canEdit: boolean; onSa
           checked={lead.loom_sent}
           date={lead.loom_sent_at}
           disabled={!canEdit}
-          onChange={(checked, date) => onSave({ loom_sent: checked, loom_sent_at: date })}
+          onChange={(c: boolean, d: string | null) => onSave({ loom_sent: c, loom_sent_at: d })}
         />
         <CheckDate
           label="Loom watched"
           checked={lead.loom_watched}
           date={lead.loom_watched_at}
           disabled={!canEdit}
-          onChange={(checked, date) => onSave({ loom_watched: checked, loom_watched_at: date })}
+          onChange={(c: boolean, d: string | null) => onSave({ loom_watched: c, loom_watched_at: d })}
         />
         <div className="w-[160px]">
           <div className="label-text mb-1">Watch %</div>
@@ -1031,8 +2046,8 @@ function LoomCard({ lead, canEdit, onSave }: { lead: any; canEdit: boolean; onSa
             disabled={!canEdit}
             onChange={(e) => setPct(e.target.value)}
             onBlur={() => {
-              const n = pct === "" ? null : Math.max(0, Math.min(100, Number(pct)));
-              if (n !== lead.loom_watch_percent) onSave({ loom_watch_percent: n });
+              const v = pct === "" ? null : Math.max(0, Math.min(100, Number(pct)));
+              if (v !== lead.loom_watch_percent) onSave({ loom_watch_percent: v });
             }}
           />
         </div>
@@ -1048,23 +2063,18 @@ function ChannelMenu({
   disabled,
   title,
 }: {
-  channels: any[];
+  channels: AnyRow[];
   value: string | null;
   onSelect: (id: string | null) => void;
   disabled?: boolean;
   title: string;
 }) {
-  const current = channels.find((c) => c.id === value);
+  const cur = channels.find((c) => c.id === value);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild disabled={disabled}>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 gap-1 px-2 text-[12px] text-muted-foreground"
-          title={title}
-        >
-          {current?.name ?? "Channel"} <ChevronDown className="size-3" />
+        <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-[12px] text-muted-foreground" title={title}>
+          {cur?.name ?? "Channel"} <ChevronDown className="size-3" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
@@ -1079,15 +2089,8 @@ function ChannelMenu({
   );
 }
 
-function KindToggle({
-  value,
-  onChange,
-  disabled,
-}: {
-  value: "email" | "message";
-  onChange: (v: "email" | "message") => void;
-  disabled?: boolean;
-}) {
+type Medium = "email" | "message";
+function MediumToggle({ value, onChange, disabled }: { value: Medium; onChange: (v: Medium) => void; disabled?: boolean }) {
   return (
     <div className="flex overflow-hidden rounded-md border border-border text-[12px]">
       <button
@@ -1110,32 +2113,44 @@ function KindToggle({
   );
 }
 
-function OtherChannelsCard({
+function OutreachCard({
   lead,
   channels,
   canEdit,
   onSave,
 }: {
-  lead: any;
-  channels: any[];
+  lead: AnyRow;
+  channels: AnyRow[];
   canEdit: boolean;
-  onSave: (p: Record<string, unknown>) => void;
+  onSave: (p: AnyRow) => void;
 }) {
-  const [contactKind, setContactKind] = useState<"email" | "message">("message");
-  const [replyKind, setReplyKind] = useState<"email" | "message">("message");
-  const [replyDialogOpen, setReplyDialogOpen] = useState(false);
-
-  const contactChannel = channels.find((c) => c.id === lead.contacted_channel_id);
-  const contactIsInstagram = (contactChannel?.name ?? "").toLowerCase().includes("instagram");
-
-  const replyChannel = channels.find((c) => c.id === lead.reply_channel_id);
-  const replyIsInstagram = (replyChannel?.name ?? "").toLowerCase().includes("instagram");
-
-  const contactChecked = contactKind === "email" ? lead.email_sent : contactIsInstagram ? lead.instagram_sent : lead.linkedin_sent;
-  const contactDate = contactKind === "email" ? lead.email_sent_at : contactIsInstagram ? lead.instagram_sent_at : lead.linkedin_sent_at;
-
-  const replyChecked = replyKind === "email" ? lead.email_replied : replyIsInstagram ? lead.instagram_replied : lead.linkedin_replied;
-  const replyDate = replyKind === "email" ? lead.email_replied_at : replyIsInstagram ? lead.instagram_replied_at : lead.linkedin_replied_at;
+  const kindOf = (cid: string | null) =>
+    channels.find((c) => c.id === cid)?.kind ??
+    ((channels.find((c) => c.id === cid)?.name ?? "").toLowerCase().includes("instagram") ? "instagram" : undefined);
+  const sentList = [
+    { on: lead.email_sent, at: lead.email_sent_at, kind: "email" },
+    { on: lead.linkedin_sent, at: lead.linkedin_sent_at, kind: "message" },
+    { on: lead.instagram_sent, at: lead.instagram_sent_at, kind: "message" },
+  ].filter((x) => x.on);
+  const replyList = [
+    { on: lead.email_replied, at: lead.email_replied_at, kind: "email" },
+    { on: lead.linkedin_replied, at: lead.linkedin_replied_at, kind: "message" },
+    { on: lead.instagram_replied, at: lead.instagram_replied_at, kind: "message" },
+  ].filter((x) => x.on);
+  const earliest = (l: AnyRow[]) => l.map((x) => x.at).filter(Boolean).sort()[0] ?? null;
+  const sentDefault: Medium =
+    kindOf(lead.contacted_channel_id) === "email" || (sentList[0]?.kind === "email" && sentList.length === 1) ? "email" : "message";
+  const replyDefault: Medium =
+    kindOf(lead.reply_channel_id) === "email" || (replyList[0]?.kind === "email" && replyList.length === 1) ? "email" : "message";
+  const [sentMedium, setSentMedium] = useState<Medium>(sentDefault);
+  const [replyMedium, setReplyMedium] = useState<Medium>(replyDefault);
+  useEffect(() => setSentMedium(sentDefault), [lead.id, sentDefault]);
+  useEffect(() => setReplyMedium(replyDefault), [lead.id, replyDefault]);
+  const contacted = sentList.length > 0;
+  const contactedAt = earliest(sentList);
+  const replied = replyList.length > 0;
+  const repliedAt = earliest(replyList);
+  const msgKind = (cid: string | null) => (kindOf(cid) === "instagram" ? "instagram" : "linkedin");
 
   return (
     <CollapsibleCard id="lead.other_channels" title="Outreach">
@@ -1145,51 +2160,60 @@ function OtherChannelsCard({
           checked={lead.linkedin_connection_sent}
           date={lead.linkedin_connection_sent_at}
           disabled={!canEdit}
-          onChange={(checked, date) => onSave({ linkedin_connection_sent: checked, linkedin_connection_sent_at: date })}
+          onChange={(c: boolean, d: string | null) => onSave({ linkedin_connection_sent: c, linkedin_connection_sent_at: d })}
         />
         <CheckDate
           label="LinkedIn message sent"
           checked={lead.linkedin_sent}
           date={lead.linkedin_sent_at}
           disabled={!canEdit}
-          onChange={(checked, date) => onSave({ linkedin_sent: checked, linkedin_sent_at: date })}
+          onChange={(c: boolean, d: string | null) => onSave({ linkedin_sent: c, linkedin_sent_at: d })}
         />
         <CheckDate
           label="LinkedIn replied"
           checked={lead.linkedin_replied}
           date={lead.linkedin_replied_at}
           disabled={!canEdit}
-          onChange={(checked, date) => onSave({ linkedin_replied: checked, linkedin_replied_at: date })}
+          onChange={(c: boolean, d: string | null) => onSave({ linkedin_replied: c, linkedin_replied_at: d })}
         />
         <CheckDate
           label="Instagram sent"
           checked={lead.instagram_sent}
           date={lead.instagram_sent_at}
           disabled={!canEdit}
-          onChange={(checked, date) => onSave({ instagram_sent: checked, instagram_sent_at: date })}
+          onChange={(c: boolean, d: string | null) => onSave({ instagram_sent: c, instagram_sent_at: d })}
         />
         <CheckDate
           label="Instagram replied"
           checked={lead.instagram_replied}
           date={lead.instagram_replied_at}
           disabled={!canEdit}
-          onChange={(checked, date) => onSave({ instagram_replied: checked, instagram_replied_at: date })}
+          onChange={(c: boolean, d: string | null) => onSave({ instagram_replied: c, instagram_replied_at: d })}
         />
-
         <div className="mt-2 border-t border-border pt-2">
           <div className="flex flex-wrap items-center gap-3 py-1">
             <CheckDate
               label="Contacted"
-              checked={!!contactChecked}
-              date={contactDate}
+              checked={!!contacted}
+              date={contactedAt}
               disabled={!canEdit}
-              onChange={(checked, date) => {
-                if (contactKind === "email") onSave({ email_sent: checked, email_sent_at: date });
-                else if (contactIsInstagram) onSave({ instagram_sent: checked, instagram_sent_at: date });
-                else onSave({ linkedin_sent: checked, linkedin_sent_at: date });
+              onChange={(c: boolean, d: string | null) => {
+                if (c) {
+                  if (sentMedium === "email") onSave({ email_sent: true, email_sent_at: d });
+                  else if (msgKind(lead.contacted_channel_id) === "instagram") onSave({ instagram_sent: true, instagram_sent_at: d });
+                  else onSave({ linkedin_sent: true, linkedin_sent_at: d });
+                } else
+                  onSave({
+                    email_sent: false,
+                    email_sent_at: null,
+                    linkedin_sent: false,
+                    linkedin_sent_at: null,
+                    instagram_sent: false,
+                    instagram_sent_at: null,
+                  });
               }}
             />
-            <KindToggle value={contactKind} onChange={setContactKind} disabled={!canEdit} />
+            <MediumToggle value={sentMedium} onChange={setSentMedium} disabled={!canEdit} />
             <ChannelMenu
               title="Channel used to contact"
               channels={channels}
@@ -1201,20 +2225,26 @@ function OtherChannelsCard({
           <div className="flex flex-wrap items-center gap-3 py-1">
             <CheckDate
               label="Replied"
-              checked={!!replyChecked}
-              date={replyDate}
+              checked={!!replied}
+              date={repliedAt}
               disabled={!canEdit}
-              onChange={(checked, date) => {
-                if (checked) {
-                  setReplyDialogOpen(true);
-                  return;
-                }
-                if (replyKind === "email") onSave({ email_replied: checked, email_replied_at: date });
-                else if (replyIsInstagram) onSave({ instagram_replied: checked, instagram_replied_at: date });
-                else onSave({ linkedin_replied: checked, linkedin_replied_at: date });
+              onChange={(c: boolean, d: string | null) => {
+                if (c) {
+                  if (replyMedium === "email") onSave({ email_replied: true, email_replied_at: d });
+                  else if (msgKind(lead.reply_channel_id) === "instagram") onSave({ instagram_replied: true, instagram_replied_at: d });
+                  else onSave({ linkedin_replied: true, linkedin_replied_at: d });
+                } else
+                  onSave({
+                    email_replied: false,
+                    email_replied_at: null,
+                    linkedin_replied: false,
+                    linkedin_replied_at: null,
+                    instagram_replied: false,
+                    instagram_replied_at: null,
+                  });
               }}
             />
-            <KindToggle value={replyKind} onChange={setReplyKind} disabled={!canEdit} />
+            <MediumToggle value={replyMedium} onChange={setReplyMedium} disabled={!canEdit} />
             <ChannelMenu
               title="Channel the reply came in on"
               channels={channels}
@@ -1226,105 +2256,7 @@ function OtherChannelsCard({
           <div className="label-text mt-1">{MANUAL_HELPER}</div>
         </div>
       </div>
-
-      <ReplyDialog
-        open={replyDialogOpen}
-        channels={channels}
-        onCancel={() => setReplyDialogOpen(false)}
-        onConfirm={(patch) => {
-          setReplyDialogOpen(false);
-          onSave(patch);
-        }}
-      />
     </CollapsibleCard>
-  );
-}
-
-function ReplyDialog({
-  open,
-  channels,
-  onCancel,
-  onConfirm,
-}: {
-  open: boolean;
-  channels: any[];
-  onCancel: () => void;
-  onConfirm: (patch: Record<string, unknown>) => void;
-}) {
-  const [platform, setPlatform] = useState<"email" | "linkedin" | "instagram">("email");
-  const [viewedDate, setViewedDate] = useState("");
-  const [repliedDate, setRepliedDate] = useState(toDateInput(new Date().toISOString()));
-
-  useEffect(() => {
-    if (open) {
-      setPlatform("email");
-      setViewedDate("");
-      setRepliedDate(toDateInput(new Date().toISOString()));
-    }
-  }, [open]);
-
-  const submit = () => {
-    const repliedAt = repliedDate ? new Date(repliedDate + "T12:00:00").toISOString() : new Date().toISOString();
-    const viewedAt = viewedDate ? new Date(viewedDate + "T12:00:00").toISOString() : repliedAt;
-    const channel = channels.find((c) => c.kind === platform);
-    const patch: Record<string, unknown> = {
-      last_contacted_at: repliedAt,
-    };
-    if (channel) patch['reply_channel_id'] = channel.id;
-    if (platform === "email") {
-      patch['email_viewed'] = true;
-      patch['email_viewed_at'] = viewedAt;
-      patch['email_replied'] = true;
-      patch['email_replied_at'] = repliedAt;
-    } else if (platform === "linkedin") {
-      patch['linkedin_replied'] = true;
-      patch['linkedin_replied_at'] = repliedAt;
-    } else {
-      patch['instagram_replied'] = true;
-      patch['instagram_replied_at'] = repliedAt;
-    }
-    onConfirm(patch);
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={(v) => !v && onCancel()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>They replied</DialogTitle>
-        </DialogHeader>
-        <div className="flex flex-col gap-3">
-          <div>
-            <div className="label-text mb-1">Where did they reply</div>
-            <Select value={platform} onValueChange={(v) => setPlatform(v as typeof platform)}>
-              <SelectTrigger className="h-8 text-[13px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="email">Email</SelectItem>
-                <SelectItem value="linkedin">LinkedIn</SelectItem>
-                <SelectItem value="instagram">Instagram</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          {platform === "email" && (
-            <div>
-              <div className="label-text mb-1">When did they view the email</div>
-              <Input type="date" className="h-8 text-[13px]" value={viewedDate} onChange={(e) => setViewedDate(e.target.value)} />
-            </div>
-          )}
-          <div>
-            <div className="label-text mb-1">When did they reply</div>
-            <Input type="date" className="h-8 text-[13px]" value={repliedDate} onChange={(e) => setRepliedDate(e.target.value)} />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button onClick={submit}>Save reply</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
 
@@ -1335,36 +2267,12 @@ function OutcomeCard({
   leadId,
   crmRecord,
 }: {
-  lead: any;
+  lead: AnyRow;
   canEdit: boolean;
-  onSave: (p: Record<string, unknown>) => void;
+  onSave: (p: AnyRow) => void;
   leadId: string;
-  crmRecord: { id: string; estimated_value: number | null } | null;
+  crmRecord: AnyRow | null;
 }) {
-  const handleClientClosed = async (checked: boolean, date: string | null) => {
-    onSave({ client_closed: checked, client_closed_at: date });
-    if (checked) {
-      const raw = window.prompt("Set deal value?");
-      if (raw !== null && raw.trim() !== "") {
-        const value = Number(raw);
-        if (!Number.isNaN(value)) {
-          const { error: rpcError } = await supabase.rpc("ensure_crm_record", { _lead_id: leadId });
-          if (rpcError) {
-            toast.error(rpcError.message ?? "Failed to create CRM record");
-            return;
-          }
-          const { data: rec } = await supabase.from("crm_records").select("id").eq("lead_id", leadId).maybeSingle();
-          const recId = rec?.id ?? crmRecord?.id;
-          if (recId) {
-            const { error } = await supabase.from("crm_records").update({ estimated_value: value } as never).eq("id", recId);
-            if (error) toast.error(error.message ?? "Failed to set deal value");
-            else toast.success("Deal value set");
-          }
-        }
-      }
-    }
-  };
-
   return (
     <CollapsibleCard id="lead.outcome" title="Outcome">
       <div className="flex flex-col gap-1">
@@ -1373,14 +2281,33 @@ function OutcomeCard({
           checked={lead.meeting_booked}
           date={lead.meeting_booked_at}
           disabled={!canEdit}
-          onChange={(checked, date) => onSave({ meeting_booked: checked, meeting_booked_at: date })}
+          onChange={(c: boolean, d: string | null) => onSave({ meeting_booked: c, meeting_booked_at: d })}
         />
         <CheckDate
           label="Client closed"
           checked={lead.client_closed}
           date={lead.client_closed_at}
           disabled={!canEdit}
-          onChange={handleClientClosed}
+          onChange={async (c: boolean, d: string | null) => {
+            onSave({ client_closed: c, client_closed_at: d });
+            if (!c) return;
+            const v = window.prompt("Set deal value?");
+            if (v === null || v.trim() === "") return;
+            const n = Number(v);
+            if (Number.isNaN(n)) return;
+            const { error } = await (supabase.rpc as any)("ensure_crm_record", { _lead_id: leadId });
+            if (error) {
+              toast.error(error.message ?? "Failed to create CRM record");
+              return;
+            }
+            const { data } = await supabase.from("crm_records").select("id").eq("lead_id", leadId).maybeSingle();
+            const rid = (data as AnyRow | null)?.id ?? crmRecord?.id;
+            if (rid) {
+              const { error: e2 } = await supabase.from("crm_records").update({ estimated_value: n } as never).eq("id", rid);
+              if (e2) toast.error(e2.message ?? "Failed to set deal value");
+              else toast.success("Deal value set");
+            }
+          }}
         />
       </div>
     </CollapsibleCard>
@@ -1394,34 +2321,17 @@ function TagsCard({
   leadId,
   invalidate,
 }: {
-  tags: any[];
+  tags: AnyRow[];
   leadTagIds: Set<string>;
   canEdit: boolean;
   leadId: string;
   invalidate: () => void;
 }) {
-  const toggle = (tagId: string, active: boolean) => {
-    if (active) {
-      void supabase
-        .from("lead_tags")
-        .delete()
-        .eq("lead_id", leadId)
-        .eq("tag_id", tagId)
-        .then(({ error }) => {
-          if (error) toast.error(error.message);
-          else invalidate();
-        });
-    } else {
-      void supabase
-        .from("lead_tags")
-        .insert({ lead_id: leadId, tag_id: tagId } as never)
-        .then(({ error }) => {
-          if (error) toast.error(error.message);
-          else invalidate();
-        });
-    }
+  const toggle = (tagId: string, on: boolean) => {
+    const done = ({ error }: { error: any }) => (error ? toast.error(error.message) : invalidate());
+    if (on) supabase.from("lead_tags").delete().eq("lead_id", leadId).eq("tag_id", tagId).then(done);
+    else supabase.from("lead_tags").insert({ lead_id: leadId, tag_id: tagId } as never).then(done);
   };
-
   return (
     <CollapsibleCard id="lead.tags" title="Tags">
       {tags.length === 0 ? (
@@ -1429,16 +2339,10 @@ function TagsCard({
       ) : (
         <div className="flex flex-wrap gap-2">
           {tags.map((t) => {
-            const active = leadTagIds.has(t.id);
+            const on = leadTagIds.has(t.id);
             return (
-              <button
-                key={t.id}
-                type="button"
-                disabled={!canEdit}
-                onClick={() => toggle(t.id, active)}
-                className="disabled:opacity-60"
-              >
-                <Pill tone={active ? "info" : "neutral"} color={active ? t.color : undefined}>
+              <button key={t.id} type="button" disabled={!canEdit} onClick={() => toggle(t.id, on)} className="disabled:opacity-60">
+                <Pill tone={on ? "info" : "neutral"} color={on ? t.color : undefined}>
                   {t.name}
                 </Pill>
               </button>

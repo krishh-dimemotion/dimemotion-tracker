@@ -8,24 +8,36 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
+import { Toaster as Sonner, type ToasterProps } from "sonner";
 
 import appCss from "../styles.css?url";
-import { AuthProvider } from "../lib/auth";
-import { Toaster } from "../components/ui/sonner";
-import { reportLovableError } from "../lib/lovable-error-reporting";
+import { AuthProvider } from "../lib/live/auth";
+import { AuthProvider as LegacyAuthProvider } from "../lib/auth";
+import { DemoTour } from "../components/live/demo-tour";
+import { isStaleChunkError, reloadForNewVersion, reportClientError } from "../lib/live/report-error";
 
-const themeBootstrap = `
-try {
-  const theme = localStorage.getItem("buzzspear-theme");
-  if (theme === "dark") {
-    document.documentElement.classList.add("dark");
-    document.documentElement.style.colorScheme = "dark";
-  } else {
-    document.documentElement.classList.remove("dark");
-    document.documentElement.style.colorScheme = "light";
-  }
-} catch (_) {}
-`;
+// Live root: index-LBNWlUO7.js (route R, shell vo, component yo, 404 go, error L).
+
+const themeBootstrap = `try{if(localStorage.getItem("tracker.theme")==="dark")document.documentElement.classList.add("dark")}catch(e){}`;
+
+/** Live toaster: inverted (foreground) toasts, rounded-xl, 13px. */
+function Toaster(props: ToasterProps) {
+  return (
+    <Sonner
+      className="toaster group"
+      toastOptions={{
+        classNames: {
+          toast:
+            "group toast group-[.toaster]:bg-foreground group-[.toaster]:text-background group-[.toaster]:border-foreground group-[.toaster]:shadow-float group-[.toaster]:rounded-xl group-[.toaster]:text-[13px]",
+          description: "group-[.toast]:text-background/70",
+          actionButton: "group-[.toast]:bg-primary group-[.toast]:text-primary-foreground",
+          cancelButton: "group-[.toast]:bg-muted group-[.toast]:text-muted-foreground",
+        },
+      }}
+      {...props}
+    />
+  );
+}
 
 function NotFoundComponent() {
   return (
@@ -53,22 +65,31 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
   useEffect(() => {
-    reportLovableError(error, { boundary: "tanstack_root_error_component" });
+    if (isStaleChunkError(error)) {
+      reloadForNewVersion();
+      return;
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    void reportClientError({
+      page: typeof window !== "undefined" ? window.location.pathname : "/",
+      errorTitle: `Page load failed: ${message.slice(0, 100)}`,
+      errorMessage: message,
+      errorStack: error instanceof Error ? error.stack : undefined,
+      category: "route_error",
+    });
   }, [error]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          This page didn't load
-        </h1>
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">This page didn't load</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Something went wrong on our end. You can try refreshing or head back home.
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
             onClick={() => {
-              router.invalidate();
+              void router.invalidate();
               reset();
             }}
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
@@ -92,26 +113,23 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Buzzspear Tracker" },
-      {
-        name: "description",
-        content: "Internal cold outreach, CRM and revenue tracker for Buzzspear.",
-      },
-      { name: "author", content: "Infosized" },
-      { property: "og:title", content: "Buzzspear Tracker" },
-      {
-        property: "og:description",
-        content: "Internal cold outreach, CRM and revenue tracker for Buzzspear.",
-      },
+      { title: "Tracker" },
+      { name: "description", content: "A simple tracker for cold outreach, CRM and revenue." },
+      { property: "og:title", content: "Tracker" },
+      { property: "og:description", content: "A simple tracker for cold outreach, CRM and revenue." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:site", content: "@Lovable" },
     ],
     links: [
+      { rel: "preconnect", href: "https://fonts.googleapis.com" },
+      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
         rel: "stylesheet",
-        href: appCss,
+        href: "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap",
       },
+      { rel: "stylesheet", href: appCss },
+      // TODO(asset): live serves /favicon.svg; this repo only has /favicon.ico.
+      { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
     ],
   }),
@@ -139,12 +157,25 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
+  // A new deploy invalidates old chunk URLs; reload once instead of erroring.
+  useEffect(() => {
+    const onPreloadError = (e: Event) => {
+      if (reloadForNewVersion()) e.preventDefault();
+    };
+    window.addEventListener("vite:preloadError", onPreloadError);
+    return () => window.removeEventListener("vite:preloadError", onPreloadError);
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-        <Outlet />
-        <Toaster />
+        {/* TODO: drop LegacyAuthProvider once no file imports useAuth from "@/lib/auth". */}
+        <LegacyAuthProvider>
+          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+          <Outlet />
+          <Toaster />
+          <DemoTour />
+        </LegacyAuthProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

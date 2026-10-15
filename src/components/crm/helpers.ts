@@ -1,3 +1,6 @@
+// Ported from live chunk helpers-Df4uC1e7.js.
+import { money } from "@/components/live/kit";
+
 export const PRIORITY_COLORS: Record<string, string> = {
   high: "#e5484d",
   medium: "#f5a623",
@@ -13,6 +16,7 @@ export const PRIORITY_LABELS: Record<string, string> = {
 export const DEAL_TYPE_LABELS: Record<string, string> = {
   one_time: "One time",
   retainer: "Retainer",
+  hybrid: "Hybrid",
 };
 
 export const DIRECTION_LABELS: Record<string, string> = {
@@ -61,4 +65,20 @@ export function senderLabel(r: CrmRecordRow) {
   if (account) parts.push(account.identifier ? `${account.label} (${account.identifier})` : account.label);
   if (channel) parts.push(channel.name);
   return parts.join(" · ") || "-";
+}
+
+/** One-line value summary, e.g. "$5,000 + $1,000/mo x 6". */
+export function dealValueLabel(r: {
+  currency?: string | null;
+  estimated_value: number | null;
+  contract_months: number | null;
+  mrr_amount: number | null;
+  deal_type: string | null;
+}) {
+  const cur = r.currency ?? "USD";
+  const base = money(r.estimated_value, cur);
+  const months = r.contract_months && r.contract_months > 0 ? ` x ${r.contract_months}` : "";
+  const mrr = r.mrr_amount ? `${money(r.mrr_amount, cur)}/mo${months}` : "";
+  if (r.deal_type === "hybrid") return mrr ? `${base} + ${mrr}` : base;
+  return (r.deal_type === "retainer" && mrr) || base;
 }

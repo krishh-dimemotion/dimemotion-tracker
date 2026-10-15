@@ -1,11 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppPage } from "@/components/app-shell";
-import { Card } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import { downloadCsv } from "@/lib/format";
-import { ImportWizard } from "@/components/data/ImportWizard";
-import { TEMPLATE_HEADER } from "@/components/data/importFields";
+import { Card, downloadCsv } from "@/components/live/kit";
+import { SheetSync } from "@/components/live/sheet-sync";
+import { ImportWizard } from "@/components/lt/data-import-wizard";
 
 export const Route = createFileRoute("/lt/data")({
   head: () => ({
@@ -54,48 +53,44 @@ const CRM_EXPORT_COLUMNS = [
   "updated_at",
 ] as const;
 
+function GoogleSheetsCard() {
+  return (
+    <Card title="Google Sheets">
+      <SheetSync />
+    </Card>
+  );
+}
+
 function DataPage() {
   const exportLeads = async () => {
     const { data, error } = await supabase.from("leads").select(LEAD_EXPORT_COLUMNS.join(","));
-    if (error) {
-      window.alert(`Export failed: ${error.message}`);
-      return;
-    }
+    if (error) return window.alert(`Export failed: ${error.message}`);
     const rows = (data ?? []) as unknown as Record<string, unknown>[];
-    downloadCsv("leads.csv", [
-      [...LEAD_EXPORT_COLUMNS],
-      ...rows.map((r) => LEAD_EXPORT_COLUMNS.map((c) => r[c] as string | number | null)),
-    ]);
+    downloadCsv("leads.csv", [[...LEAD_EXPORT_COLUMNS], ...rows.map((r) => LEAD_EXPORT_COLUMNS.map((c) => r[c] as string | number | null))]);
   };
 
   const exportCrm = async () => {
     const { data, error } = await supabase.from("crm_records").select(CRM_EXPORT_COLUMNS.join(","));
-    if (error) {
-      window.alert(`Export failed: ${error.message}`);
-      return;
-    }
+    if (error) return window.alert(`Export failed: ${error.message}`);
     const rows = (data ?? []) as unknown as Record<string, unknown>[];
-    downloadCsv("crm_records.csv", [
-      [...CRM_EXPORT_COLUMNS],
-      ...rows.map((r) => CRM_EXPORT_COLUMNS.map((c) => r[c] as string | number | null)),
-    ]);
+    downloadCsv("crm_records.csv", [[...CRM_EXPORT_COLUMNS], ...rows.map((r) => CRM_EXPORT_COLUMNS.map((c) => r[c] as string | number | null))]);
   };
 
-  const downloadTemplate = () => {
-    downloadCsv("leads_template.csv", [TEMPLATE_HEADER.split(",")]);
-  };
-
+  // Live passes guide="import" to the page shell; the repo AppPage has no guide prop yet.
   return (
     <AppPage module="lead" title="Import / Export" perm="lead.import_export">
       <div className="flex flex-col gap-4">
+        <GoogleSheetsCard />
         <Card title="Export">
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" onClick={exportLeads}>Export all leads (CSV)</Button>
-            <Button size="sm" variant="outline" onClick={exportCrm}>Export CRM records (CSV)</Button>
-            <Button size="sm" variant="outline" onClick={downloadTemplate}>Download template CSV</Button>
+            <Button size="sm" variant="outline" onClick={exportLeads}>
+              Export all leads (CSV)
+            </Button>
+            <Button size="sm" variant="outline" onClick={exportCrm}>
+              Export CRM records (CSV)
+            </Button>
           </div>
         </Card>
-
         <ImportWizard />
       </div>
     </AppPage>

@@ -1,259 +1,288 @@
+// Ported from live chunk crm.dashboard-CDSAsWKm.js.
 import { useMemo } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { AppPage } from "@/components/app-shell";
-import { Card, EmptyState, Loading, Metric, Pill } from "@/components/kit";
+import { Card, EmptyState, Loading, Pill, fmtDate } from "@/components/live/kit";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { useStages } from "@/hooks/useLookups";
-import { money, fmtDate } from "@/lib/format";
-import { DEAL_TYPE_LABELS } from "@/components/crm/helpers";
-import { MonthlyRevenueChart } from "@/components/crm/revenue/MonthlyRevenueChart";
-import type { RevenueSummary } from "@/components/crm/revenue/types";
+import { useProfiles, useStages } from "@/hooks/useLookups";
+import { WithHelp } from "@/components/crm/help-link";
+import { useReportCurrency } from "@/components/crm/report-currency";
+import { DEAL_TYPE_LABELS, dealValueLabel } from "@/components/crm/helpers";
+import { REVENUE_FIELDS, dealTotal, monthKey, type EarningsDeal } from "@/components/crm/earnings";
+import {
+  DEFAULT_FILTERS,
+  MetricPickerRow,
+  RevenueBarChart,
+  RevenueFilterBar,
+  SmallSelect,
+  applyFilters,
+  useRevenueMetrics,
+  useStoredState,
+} from "@/components/crm/filters";
 
 export const Route = createFileRoute("/crm/dashboard")({
   head: () => ({
     meta: [
-      { title: "Dashboard | CRM | Buzzspear Tracker" },
-      {
-        name: "description",
-        content: "Sales pipeline overview: open value, weighted pipeline, closed revenue, MRR and win rate.",
-      },
-      { property: "og:title", content: "Dashboard | CRM | Buzzspear Tracker" },
+      { title: "Dashboard | CRM | Tracker" },
+      { name: "description", content: "Sales overview: open pipeline, money won, monthly income and win rate." },
+      { property: "og:title", content: "Dashboard | CRM | Tracker" },
       {
         property: "og:description",
-        content: "Sales pipeline overview: open value, weighted pipeline, closed revenue, MRR and win rate.",
+        content: "Sales overview: open pipeline, money won, monthly income and win rate.",
       },
     ],
   }),
   component: CrmDashboardPage,
 });
 
-type DashboardRecord = {
+type DashboardRecord = EarningsDeal & {
   id: string;
   stage_id: string | null;
-  estimated_value: number | null;
-  currency: string;
-  deal_type: string;
-  mrr_amount: number | null;
-  probability: number | null;
-  closed_at: string | null;
+  owner_id: string | null;
   created_at: string;
-  updated_at: string;
+  estimated_value: number | null;
+  contract_months: number | null;
+  mrr_amount: number | null;
+  deal_type: string | null;
   leads: { company_name: string; primary_contact: string | null } | null;
 };
 
 const DONUT_COLORS = ["var(--color-info)", "var(--color-positive)", "var(--color-warning)", "var(--color-negative)"];
 
-function monthKey(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-
 function CrmDashboardPage() {
   const { can } = useAuth();
-  const canRevenue = can("crm.revenue");
+  can("crm.revenue");
   const { data: stages, isLoading: stagesLoading } = useStages("crm");
-
-  const { data: summary } = useQuery({
-    queryKey: ["revenue_summary_dashboard"],
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc("revenue_summary");
-      if (error) throw error;
-      return (data?.[0] ?? null) as RevenueSummary | null;
-    },
-    enabled: canRevenue,
-    retry: false,
-  });
 
   const { data: records, isLoading: recordsLoading } = useQuery({
     queryKey: ["crm_records_dashboard"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("crm_records")
-        .select(
-          "id,stage_id,estimated_value,currency,deal_type,mrr_amount,probability,closed_at,created_at,updated_at,leads(company_name,primary_contact)",
-        )
+        .select(`id,stage_id,owner_id,created_at,${REVENUE_FIELDS},leads(company_name,primary_contact)`)
         .order("created_at", { ascending: false })
         .limit(2000);
       if (error) throw error;
-      return (data ?? []) as unknown as DashboardRecord[];
+      return (data ?? []) as DashboardRecord[];
     },
   });
 
-  const stageMap = useMemo(() => new Map((stages ?? []).map((s) => [s.id, s])), [stages]);
-
+  const stageById = useMemo(() => new Map((stages ?? []).map((s) => [s.id, s])), [stages]);
   const rows = records ?? [];
-
-  const openRows = useMemo(
-    () => rows.filter((r) => {
-      const s = r.stage_id ? stageMap.get(r.stage_id) : null;
-      return !s || (!s.is_won && !s.is_lost);
-    }),
-    [rows, stageMap],
-  );
-  const wonRows = useMemo(
-    () => rows.filter((r) => (r.stage_id ? stageMap.get(r.stage_id)?.is_won : false)),
-    [rows, stageMap],
-  );
-  const lostRows = useMemo(
-    () => rows.filter((r) => (r.stage_id ? stageMap.get(r.stage_id)?.is_lost : false)),
-    [rows, stageMap],
+  const fx = useReportCurrency();
+  const { data: profiles } = useProfiles();
+  const owners = useMemo(
+    () => (profiles ?? []).map((p) => ({ id: p.id, name: p.full_name || p.email || "Someone" })),
+    [profiles],
   );
 
-  const fallback = useMemo(() => {
-    const now = new Date();
-    const openPipelineValue = openRows.reduce((s, r) => s + Number(r.estimated_value ?? 0), 0);
-    const weightedPipeline = openRows.reduce(
-      (s, r) => s + Number(r.estimated_value ?? 0) * (Number(r.probability ?? 0) / 100),
-      0,
-    );
-    const closedThisMonth = wonRows.filter((r) => (r.closed_at ?? "").slice(0, 7) === monthKey(now));
-    const closedRevenueThisMonth = closedThisMonth.reduce((s, r) => s + Number(r.estimated_value ?? 0), 0);
-    const closedMrr = wonRows.reduce((s, r) => s + Number(r.mrr_amount ?? 0), 0);
-    const wonCount = wonRows.length;
-    const lostCount = lostRows.length;
-    const winRate = wonCount + lostCount > 0 ? Math.round((wonCount / (wonCount + lostCount)) * 100) : 0;
-    const avgDealSize = wonCount > 0 ? wonRows.reduce((s, r) => s + Number(r.estimated_value ?? 0), 0) / wonCount : 0;
-    return {
-      openPipelineValue,
-      weightedPipeline,
-      closedRevenueThisMonth,
-      closedMrr,
-      winRate,
-      winRateHasData: wonCount + lostCount > 0,
-      avgDealSize,
-    };
-  }, [openRows, wonRows, lostRows]);
+  const [filters, setFilters] = useStoredState("crm.filters.dashboard", DEFAULT_FILTERS);
+  const [donut, setDonut] = useStoredState("crm.dash.donut", "won");
+  const [chart, setChart] = useStoredState("crm.dash.chart", "last12");
+  const [stageMode, setStageMode] = useStoredState("crm.dash.stages", "open");
+  const [recentMode, setRecentMode] = useStoredState("crm.dash.recent", "added");
 
-  const metrics = canRevenue && summary
-    ? {
-        openPipelineValue: summary.pipeline_value,
-        weightedPipeline: summary.weighted_pipeline,
-        closedRevenueThisMonth: summary.won_this_month,
-        closedMrr: summary.current_mrr,
-        winRate: summary.won_count + summary.lost_count > 0
-          ? Math.round((summary.won_count / (summary.won_count + summary.lost_count)) * 100)
-          : 0,
-        winRateHasData: summary.won_count + summary.lost_count > 0,
-        avgDealSize: summary.avg_deal_size,
-      }
-    : fallback;
+  const buckets = useMemo(() => {
+    const open: DashboardRecord[] = [];
+    const won: DashboardRecord[] = [];
+    const lost: DashboardRecord[] = [];
+    for (const r of rows) {
+      const s = r.stage_id ? stageById.get(r.stage_id) : null;
+      if (s?.is_won) won.push(r);
+      else if (s?.is_lost) lost.push(r);
+      else open.push(r);
+    }
+    return { open, won, lost };
+  }, [rows, stageById]);
 
-  const donutData = useMemo(() => {
-    const groups = new Map<string, number>();
-    wonRows.forEach((r) => {
-      const key = DEAL_TYPE_LABELS[r.deal_type] ?? r.deal_type;
-      groups.set(key, (groups.get(key) ?? 0) + Number(r.mrr_amount ?? 0));
+  const filtered = useMemo(() => applyFilters(buckets, filters), [buckets, filters]);
+  const { metrics, overTime } = useRevenueMetrics(filtered, fx, filters);
+
+  const donutRows = donut === "won" ? filtered.won : donut === "open" ? filtered.open : filtered.lost;
+  const byType = useMemo(() => {
+    const map = new Map<string, number>();
+    donutRows.forEach((r) => {
+      const label = DEAL_TYPE_LABELS[r.deal_type ?? ""] ?? r.deal_type ?? "";
+      map.set(label, (map.get(label) ?? 0) + dealTotal(r, fx));
     });
-    return Array.from(groups.entries())
+    return Array.from(map.entries())
       .map(([name, value]) => ({ name, value }))
       .filter((d) => d.value > 0);
-  }, [wonRows]);
-  const donutTotal = donutData.reduce((s, d) => s + d.value, 0);
+  }, [donutRows, fx]);
+  const donutTotal = byType.reduce((a, b) => a + b.value, 0);
+  const donutWord = donut === "won" ? "won" : donut === "open" ? "open" : "lost";
 
-  const monthlyClosed = useMemo(() => {
-    const months: { key: string; label: string }[] = [];
+  const earned = overTime.earned;
+  const monthly = useMemo(() => {
     const now = new Date();
-    for (let i = 11; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      months.push({ key: monthKey(d), label: d.toLocaleDateString(undefined, { month: "short", year: "2-digit" }) });
-    }
-    return months.map(({ key, label }) => {
-      const monthRows = wonRows.filter((r) => (r.closed_at ?? "").slice(0, 7) === key);
-      const value = monthRows.reduce((s, r) => s + Number(r.estimated_value ?? 0), 0);
-      return { month: key, label, value, weighted: value };
+    return Array.from({ length: 12 }, (_, i) =>
+      chart === "year" ? new Date(now.getFullYear(), i, 1) : new Date(now.getFullYear(), now.getMonth() - 11 + i, 1),
+    ).map((d) => {
+      const key = monthKey(d);
+      return {
+        month: key,
+        label: d.toLocaleDateString(undefined, { month: "short", year: "2-digit" }),
+        won: earned.get(key) ?? 0,
+        value: 0,
+      };
     });
-  }, [wonRows]);
+  }, [earned, chart]);
 
-  const stageBreakdown = useMemo(() => {
-    return (stages ?? []).map((s) => {
-      const stageRows = rows.filter((r) => r.stage_id === s.id);
-      const value = stageRows.reduce((sum, r) => sum + Number(r.estimated_value ?? 0), 0);
-      return { stage: s, count: stageRows.length, value };
-    });
-  }, [stages, rows]);
-  const maxStageValue = Math.max(1, ...stageBreakdown.map((s) => s.value));
+  const byStage = useMemo(() => {
+    const pool = stageMode === "open" ? filtered.open : [...filtered.open, ...filtered.won, ...filtered.lost];
+    return (stages ?? [])
+      .map((stage) => {
+        const inStage = pool.filter((r) => r.stage_id === stage.id);
+        const value = inStage.reduce((a, r) => a + dealTotal(r, fx), 0);
+        return { stage, count: inStage.length, value };
+      })
+      .filter((s) => stageMode === "all" || (!s.stage.is_won && !s.stage.is_lost));
+  }, [stages, filtered, fx, stageMode]);
+  const maxStageValue = Math.max(1, ...byStage.map((s) => s.value));
 
-  const recent = rows.slice(0, 8);
+  const recent = useMemo(
+    () =>
+      recentMode === "won"
+        ? [...filtered.won].sort((a, b) => (b.closed_at ?? "").localeCompare(a.closed_at ?? "")).slice(0, 8)
+        : recentMode === "open"
+          ? filtered.open.slice(0, 8)
+          : [...filtered.open, ...filtered.won, ...filtered.lost]
+              .sort((a, b) => b.created_at.localeCompare(a.created_at))
+              .slice(0, 8),
+    [filtered, recentMode],
+  );
 
-  const isLoading = recordsLoading || stagesLoading;
+  const loading = recordsLoading || stagesLoading || !fx.ready;
 
   return (
-    <AppPage module="crm" title="Dashboard" perm="crm.records">
+    <AppPage guide="crm-dashboard" module="crm" title="Dashboard" perm="crm.records">
       <div className="flex flex-col gap-4">
-        {isLoading ? (
+        {loading ? (
           <Loading />
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-              <Metric label="Open pipeline value" value={money(metrics.openPipelineValue)} />
-              <Metric label="Weighted pipeline" value={money(metrics.weightedPipeline)} tone="info" />
-              <Metric label="Closed revenue this month" value={money(metrics.closedRevenueThisMonth)} tone="positive" />
-              <Metric label="Closed MRR" value={money(metrics.closedMrr)} tone="positive" />
-              <Metric
-                label="Win rate"
-                value={metrics.winRateHasData ? `${metrics.winRate}%` : "0%"}
-                helper={metrics.winRateHasData ? "" : "No data yet"}
-              />
-              <Metric label="Average deal size" value={money(metrics.avgDealSize)} />
-            </div>
+            <RevenueFilterBar value={filters} onChange={setFilters} owners={owners} />
+            <MetricPickerRow
+              storageKey="crm.dash.cards"
+              defaults={["open", "thisMonth", "mrr", "winRate", "lost", "avgDeal"]}
+              metrics={metrics}
+              className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6"
+            />
+            <p className="label-text -mt-2">
+              All totals in {fx.code}. Click any card's title to choose what it shows.{" "}
+              <a
+                href="https://tracker.infosized.co/guide#crm-dashboard"
+                target="_blank"
+                rel="noreferrer"
+                className="underline"
+              >
+                What do these numbers mean?
+              </a>
+            </p>
 
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-              <Card title="Closed MRR by deal type" className="lg:col-span-1">
-                {donutData.length === 0 ? (
-                  <EmptyState title="No closed MRR yet" hint="Closed retainer deals will appear here." />
+              <Card
+                title={`Money ${donutWord} by deal type`}
+                className="lg:col-span-1"
+                actions={
+                  <SmallSelect
+                    label="Won, open or lost"
+                    value={donut}
+                    onChange={setDonut}
+                    options={[
+                      { value: "won", label: "Won" },
+                      { value: "open", label: "Open" },
+                      { value: "lost", label: "Lost" },
+                    ]}
+                  />
+                }
+              >
+                {byType.length === 0 ? (
+                  <EmptyState
+                    title={`No ${donutWord} deals here`}
+                    hint="Deals appear here split into one time, retainer and hybrid."
+                  />
                 ) : (
                   <div className="relative h-64 w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
-                          data={donutData}
+                          data={byType}
                           dataKey="value"
                           nameKey="name"
                           innerRadius={60}
                           outerRadius={90}
                           paddingAngle={2}
                         >
-                          {donutData.map((d, i) => (
+                          {byType.map((d, i) => (
                             <Cell key={d.name} fill={DONUT_COLORS[i % DONUT_COLORS.length]} />
                           ))}
                         </Pie>
-                        <Tooltip formatter={(v: number) => money(v)} contentStyle={{ fontSize: 12 }} />
+                        <Tooltip formatter={(v: number) => fx.fmt(v)} contentStyle={{ fontSize: 12 }} />
                       </PieChart>
                     </ResponsiveContainer>
                     <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                      <div className="text-[11px] text-muted-foreground">Total MRR</div>
-                      <div className="text-[18px] font-semibold">{money(donutTotal)}</div>
+                      <div className="text-[11px] text-muted-foreground">Total {donutWord}</div>
+                      <div className="text-[18px] font-semibold">{fx.fmt(donutTotal)}</div>
                     </div>
                   </div>
                 )}
-                {donutData.length > 0 && (
+                {byType.length > 0 && (
                   <div className="mt-3 flex flex-wrap justify-center gap-3 text-[12px]">
-                    {donutData.map((d, i) => (
+                    {byType.map((d, i) => (
                       <span key={d.name} className="flex items-center gap-1.5">
                         <span
                           className="inline-block size-2 rounded-full"
                           style={{ backgroundColor: DONUT_COLORS[i % DONUT_COLORS.length] }}
                         />
-                        {d.name}: {money(d.value)}
+                        {d.name}: {fx.fmt(d.value)}
                       </span>
                     ))}
                   </div>
                 )}
               </Card>
 
-              <Card title="Closed revenue by month (last 12 months)" className="lg:col-span-2">
-                <MonthlyRevenueChart data={monthlyClosed} weighted={false} />
+              <Card
+                title="Earned by month"
+                className="lg:col-span-2"
+                actions={
+                  <SmallSelect
+                    label="Which months"
+                    value={chart}
+                    onChange={setChart}
+                    options={[
+                      { value: "last12", label: "Last 12 months" },
+                      { value: "year", label: `This year (${new Date().getFullYear()})` },
+                    ]}
+                  />
+                }
+              >
+                <RevenueBarChart currency={fx.code} data={monthly} showExpected={false} />
               </Card>
             </div>
 
-            <Card title="Pipeline by stage">
-              {stageBreakdown.length === 0 ? (
+            <Card
+              title={<WithHelp section="pipeline">Pipeline by stage</WithHelp>}
+              actions={
+                <SmallSelect
+                  label="Which stages"
+                  value={stageMode}
+                  onChange={setStageMode}
+                  options={[
+                    { value: "open", label: "Open stages" },
+                    { value: "all", label: "All stages, incl. won and lost" },
+                  ]}
+                />
+              }
+            >
+              {byStage.length === 0 ? (
                 <EmptyState title="No stages configured" hint="Add stages to the CRM board to see a breakdown." />
               ) : (
                 <div className="flex flex-col gap-2">
-                  {stageBreakdown.map(({ stage, count, value }) => (
+                  {byStage.map(({ stage, count, value }) => (
                     <div key={stage.id} className="flex items-center gap-3">
                       <div className="w-40 shrink-0">
                         <Pill color={stage.color}>{stage.name}</Pill>
@@ -268,7 +297,7 @@ function CrmDashboardPage() {
                         />
                       </div>
                       <div className="w-28 shrink-0 text-right text-[12px] text-muted-foreground">
-                        {count} · {money(value)}
+                        {count} · {fx.fmt(value)}
                       </div>
                     </div>
                   ))}
@@ -276,7 +305,21 @@ function CrmDashboardPage() {
               )}
             </Card>
 
-            <Card title="Recent records">
+            <Card
+              title="Recent records"
+              actions={
+                <SmallSelect
+                  label="Which records"
+                  value={recentMode}
+                  onChange={setRecentMode}
+                  options={[
+                    { value: "added", label: "Newest" },
+                    { value: "open", label: "Newest open" },
+                    { value: "won", label: "Recently won" },
+                  ]}
+                />
+              }
+            >
               {recent.length === 0 ? (
                 <EmptyState title="No CRM records yet" hint="Records appear here once a lead is marked replied." />
               ) : (
@@ -293,7 +336,7 @@ function CrmDashboardPage() {
                     </thead>
                     <tbody>
                       {recent.map((r) => {
-                        const stage = r.stage_id ? stageMap.get(r.stage_id) : undefined;
+                        const s = r.stage_id ? stageById.get(r.stage_id) : undefined;
                         return (
                           <tr key={r.id} className="border-b border-border hover:bg-subtle">
                             <td className="px-2 py-1.5">
@@ -307,9 +350,9 @@ function CrmDashboardPage() {
                             </td>
                             <td className="px-2 py-1.5">{r.leads?.primary_contact ?? "-"}</td>
                             <td className="px-2 py-1.5">
-                              <Pill color={stage?.color}>{stage?.name ?? "-"}</Pill>
+                              <Pill color={s?.color}>{s?.name ?? "-"}</Pill>
                             </td>
-                            <td className="px-2 py-1.5">{money(r.estimated_value, r.currency)}</td>
+                            <td className="px-2 py-1.5">{dealValueLabel(r)}</td>
                             <td className="px-2 py-1.5">{fmtDate(r.updated_at)}</td>
                           </tr>
                         );

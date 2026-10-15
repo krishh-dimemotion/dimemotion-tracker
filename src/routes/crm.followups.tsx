@@ -1,64 +1,63 @@
+// Ported from live chunk crm.followups-Xn82thxd.js.
 import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { AppPage } from "@/components/app-shell";
-import { Card, EmptyState, Loading } from "@/components/kit";
+import { Card, EmptyState, Loading, addDaysISO, fmtDate, todayISO } from "@/components/live/kit";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { useChannels } from "@/hooks/useLookups";
-import { addDaysISO, fmtDate, todayISO } from "@/lib/format";
 
 export const Route = createFileRoute("/crm/followups")({
   head: () => ({
     meta: [
-      { title: "Follow-ups — CRM — Buzzspear Tracker" },
+      { title: "Follow-ups | CRM | Tracker" },
       { name: "description", content: "Overdue, today and upcoming CRM follow-ups." },
-      { property: "og:title", content: "Follow-ups — CRM — Buzzspear Tracker" },
+      { property: "og:title", content: "Follow-ups | CRM | Tracker" },
       { property: "og:description", content: "Overdue, today and upcoming CRM follow-ups." },
     ],
   }),
   component: FollowupsPage,
 });
 
+type FollowupRow = {
+  id: string;
+  next_followup_date: string;
+  leads: { company_name: string } | null;
+};
+
+type LogInput = { recordId: string; channelId: string; direction: string; summary: string };
+
 function FollowupsPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { data: channels } = useChannels();
-
   const query = useQuery({
     queryKey: ["crm_followups"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("crm_records")
         .select("*, leads(company_name)")
         .not("next_followup_date", "is", null)
         .order("next_followup_date", { ascending: true });
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []) as FollowupRow[];
     },
   });
-
   const rows = query.data ?? [];
   const today = todayISO();
-  const in7 = addDaysISO(7);
-  const overdue = rows.filter((r: any) => r.next_followup_date < today);
-  const dueToday = rows.filter((r: any) => r.next_followup_date === today);
-  const upcoming = rows.filter((r: any) => r.next_followup_date > today && r.next_followup_date <= in7);
+  const weekOut = addDaysISO(7);
+  const overdue = rows.filter((r) => r.next_followup_date < today);
+  const dueToday = rows.filter((r) => r.next_followup_date === today);
+  const upcoming = rows.filter((r) => r.next_followup_date > today && r.next_followup_date <= weekOut);
 
-  const snoozeMutation = useMutation({
+  const snooze = useMutation({
     mutationFn: async ({ id, days, from }: { id: string; days: number; from: string }) => {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("crm_records")
         .update({ next_followup_date: addDaysISO(days, from) })
         .eq("id", id);
@@ -68,13 +67,13 @@ function FollowupsPage() {
     onError: (e: any) => toast.error(e.message ?? "Failed to snooze"),
   });
 
-  const logMutation = useMutation({
-    mutationFn: async (vars: { recordId: string; channelId: string; direction: string; summary: string }) => {
-      const { error } = await supabase.from("crm_contact_log").insert({
-        crm_record_id: vars.recordId,
-        channel_id: vars.channelId || null,
-        direction: vars.direction,
-        summary: vars.summary || null,
+  const logContact = useMutation({
+    mutationFn: async (v: LogInput) => {
+      const { error } = await (supabase as any).from("crm_contact_log").insert({
+        crm_record_id: v.recordId,
+        channel_id: v.channelId || null,
+        direction: v.direction,
+        summary: v.summary || null,
       });
       if (error) throw error;
     },
@@ -85,13 +84,13 @@ function FollowupsPage() {
     onError: (e: any) => toast.error(e.message ?? "Failed to log contact"),
   });
 
-  const bucketCard = (title: string, list: any[]) => (
-    <Card title={`${title} (${list.length})`} className="flex-1 min-w-[280px]">
+  const column = (title: string, list: FollowupRow[]) => (
+    <Card title={`${title} (${list.length})`} className="min-w-0">
       {list.length === 0 ? (
         <div className="py-6 text-center text-[12px] text-muted-foreground">Nothing here</div>
       ) : (
         <div className="flex flex-col divide-y divide-border">
-          {list.map((r: any) => (
+          {list.map((r) => (
             <div key={r.id} className="flex flex-col gap-1.5 py-2">
               <button
                 className="text-left text-[13px] font-medium hover:underline"
@@ -101,8 +100,8 @@ function FollowupsPage() {
               </button>
               <div className="text-[11px] text-muted-foreground">Due {fmtDate(r.next_followup_date)}</div>
               <div className="flex items-center gap-1.5">
-                <LogDialog record={r} channels={channels ?? []} onLog={logMutation.mutate} />
-                <Select onValueChange={(v) => snoozeMutation.mutate({ id: r.id, days: Number(v), from: today })}>
+                <LogContactDialog record={r} channels={channels ?? []} onLog={logContact.mutate} />
+                <Select onValueChange={(v) => snooze.mutate({ id: r.id, days: Number(v), from: today })}>
                   <SelectTrigger className="h-7 w-[110px] text-[11px]">
                     <SelectValue placeholder="Snooze" />
                   </SelectTrigger>
@@ -121,36 +120,35 @@ function FollowupsPage() {
   );
 
   return (
-    <AppPage module="crm" title="Follow-ups" perm="crm.followups">
+    <AppPage guide="crm-followups" module="crm" title="Follow-ups" perm="crm.followups">
       {query.isLoading ? (
         <Loading />
       ) : rows.length === 0 ? (
         <EmptyState title="No follow-ups scheduled" hint="Set a next follow-up date on a record to see it here." />
       ) : (
-        <div className="flex flex-col gap-3 md:flex-row">
-          {bucketCard("Overdue", overdue)}
-          {bucketCard("Today", dueToday)}
-          {bucketCard("Upcoming 7 days", upcoming)}
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+          {column("Overdue", overdue)}
+          {column("Today", dueToday)}
+          {column("Upcoming 7 days", upcoming)}
         </div>
       )}
     </AppPage>
   );
 }
 
-function LogDialog({
+function LogContactDialog({
   record,
   channels,
   onLog,
 }: {
-  record: any;
-  channels: any[];
-  onLog: (vars: { recordId: string; channelId: string; direction: string; summary: string }) => void;
+  record: FollowupRow;
+  channels: { id: string; name: string }[];
+  onLog: (v: LogInput) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [channelId, setChannelId] = useState("");
   const [direction, setDirection] = useState("outbound");
   const [summary, setSummary] = useState("");
-
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -168,7 +166,7 @@ function LogDialog({
               <SelectValue placeholder="Channel" />
             </SelectTrigger>
             <SelectContent>
-              {channels.map((c: any) => (
+              {channels.map((c) => (
                 <SelectItem key={c.id} value={c.id}>
                   {c.name}
                 </SelectItem>
