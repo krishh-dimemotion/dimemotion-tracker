@@ -1936,6 +1936,15 @@ function NotesCard({ lead, canEdit, onSave }: { lead: AnyRow; canEdit: boolean; 
             onBlur={() => additional !== (lead.additional_notes ?? "") && onSave({ additional_notes: additional || null })}
           />
         </div>
+        {research.trim() && (
+          <div>
+            <div className="label-text mb-1">Preview</div>
+            <div
+              className="rounded-md border border-border bg-subtle p-2.5 text-[13px] leading-relaxed"
+              dangerouslySetInnerHTML={{ __html: research }}
+            />
+          </div>
+        )}
       </div>
     </CollapsibleCard>
   );
