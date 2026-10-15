@@ -11,12 +11,9 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthRouteImport } from './routes/auth'
-import { Route as BillingRouteImport } from './routes/billing'
-import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as ClipRouteImport } from './routes/clip'
 import { Route as ModulesRouteImport } from './routes/modules'
 import { Route as PendingRouteImport } from './routes/pending'
-import { Route as PlansRouteImport } from './routes/plans'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as AuthCompleteRouteImport } from './routes/auth_.complete'
@@ -54,16 +51,6 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
-const BillingRoute = BillingRouteImport.update({
-  id: '/billing',
-  path: '/billing',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CheckoutRoute = CheckoutRouteImport.update({
-  id: '/checkout',
-  path: '/checkout',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ClipRoute = ClipRouteImport.update({
   id: '/clip',
   path: '/clip',
@@ -77,11 +64,6 @@ const ModulesRoute = ModulesRouteImport.update({
 const PendingRoute = PendingRouteImport.update({
   id: '/pending',
   path: '/pending',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PlansRoute = PlansRouteImport.update({
-  id: '/plans',
-  path: '/plans',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRoute = SettingsRouteImport.update({
@@ -218,12 +200,9 @@ const LtLeadsLinkedinRoute = LtLeadsLinkedinRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/billing': typeof BillingRoute
-  '/checkout': typeof CheckoutRoute
   '/clip': typeof ClipRoute
   '/modules': typeof ModulesRoute
   '/pending': typeof PendingRoute
-  '/plans': typeof PlansRoute
   '/settings': typeof SettingsRoute
   '/welcome': typeof WelcomeRoute
   '/auth/complete': typeof AuthCompleteRoute
@@ -254,12 +233,9 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/billing': typeof BillingRoute
-  '/checkout': typeof CheckoutRoute
   '/clip': typeof ClipRoute
   '/modules': typeof ModulesRoute
   '/pending': typeof PendingRoute
-  '/plans': typeof PlansRoute
   '/settings': typeof SettingsRoute
   '/welcome': typeof WelcomeRoute
   '/auth/complete': typeof AuthCompleteRoute
@@ -291,12 +267,9 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/billing': typeof BillingRoute
-  '/checkout': typeof CheckoutRoute
   '/clip': typeof ClipRoute
   '/modules': typeof ModulesRoute
   '/pending': typeof PendingRoute
-  '/plans': typeof PlansRoute
   '/settings': typeof SettingsRoute
   '/welcome': typeof WelcomeRoute
   '/auth_/complete': typeof AuthCompleteRoute
@@ -329,12 +302,9 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
-    | '/billing'
-    | '/checkout'
     | '/clip'
     | '/modules'
     | '/pending'
-    | '/plans'
     | '/settings'
     | '/welcome'
     | '/auth/complete'
@@ -365,12 +335,9 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
-    | '/billing'
-    | '/checkout'
     | '/clip'
     | '/modules'
     | '/pending'
-    | '/plans'
     | '/settings'
     | '/welcome'
     | '/auth/complete'
@@ -401,12 +368,9 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/auth'
-    | '/billing'
-    | '/checkout'
     | '/clip'
     | '/modules'
     | '/pending'
-    | '/plans'
     | '/settings'
     | '/welcome'
     | '/auth_/complete'
@@ -438,12 +402,9 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRoute
-  BillingRoute: typeof BillingRoute
-  CheckoutRoute: typeof CheckoutRoute
   ClipRoute: typeof ClipRoute
   ModulesRoute: typeof ModulesRoute
   PendingRoute: typeof PendingRoute
-  PlansRoute: typeof PlansRoute
   SettingsRoute: typeof SettingsRoute
   WelcomeRoute: typeof WelcomeRoute
   AuthCompleteRoute: typeof AuthCompleteRoute
@@ -488,20 +449,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/billing': {
-      id: '/billing'
-      path: '/billing'
-      fullPath: '/billing'
-      preLoaderRoute: typeof BillingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/checkout': {
-      id: '/checkout'
-      path: '/checkout'
-      fullPath: '/checkout'
-      preLoaderRoute: typeof CheckoutRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/clip': {
       id: '/clip'
       path: '/clip'
@@ -521,13 +468,6 @@ declare module '@tanstack/react-router' {
       path: '/pending'
       fullPath: '/pending'
       preLoaderRoute: typeof PendingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/plans': {
-      id: '/plans'
-      path: '/plans'
-      fullPath: '/plans'
-      preLoaderRoute: typeof PlansRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -718,12 +658,9 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRoute,
-  BillingRoute: BillingRoute,
-  CheckoutRoute: CheckoutRoute,
   ClipRoute: ClipRoute,
   ModulesRoute: ModulesRoute,
   PendingRoute: PendingRoute,
-  PlansRoute: PlansRoute,
   SettingsRoute: SettingsRoute,
   WelcomeRoute: WelcomeRoute,
   AuthCompleteRoute: AuthCompleteRoute,

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Live chunk: app-shell-DE-EaUp2.js
-// The app frame (sidebar, header, trial banner, command palette, shortcuts)
+// The app frame (sidebar, header, command palette, shortcuts)
 // plus the shared pieces other chunks import from it.
 //
 // Export mapping (live letter -> name here):
@@ -117,7 +117,6 @@ import { autoStageForOutreach, normalizeEmail, parseUrl } from "@/lib/live/confi
 import { useOutreachChannels } from "@/lib/live/outreach-channels";
 import { runSheetBackup } from "@/lib/live/sheets.functions";
 import { getGoogleStatus } from "@/lib/live/google.functions";
-import { BILLING_ACCESS_KEY, getBillingAccess, type BillingAccess } from "@/lib/live/use-subscribe";
 import {
   deleteLeadEvent,
   emailLeadProfile,
@@ -817,29 +816,13 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "Oct 15, 2026",
     version: "v2.10",
-    title: "Tracker Pro & Max Plans, AI Quotas & Invoice Hub",
+    title: "Invoice Hub",
     summary:
-      "Introducing our new plan tiers, dedicated checkout flow, real-time AI spreadsheet import allowances, workspace entitlements, and CRM invoice creation.",
+      "Introducing CRM invoice creation and a better spreadsheet import center.",
     highlights: [
       {
         tag: "New",
-        text: "Pro & Max Plans: Choose between Tracker Pro (₹549/mo or ₹5,299/yr) and Tracker Max (₹899/mo or ₹8,099/yr), complete with a 7-day free trial and dedicated plan comparison.",
-      },
-      {
-        tag: "New",
-        text: "AI Import Quotas: Real-time quota tracking with 20 monthly imports on Pro, unlimited imports on Max, and 3 imports during free trials.",
-      },
-      {
-        tag: "New",
-        text: "Multi-Workspace & Seat Capacity: Tracker Max supports up to 3 workspaces and 7 team members; Tracker Pro supports 1 workspace and up to 4 team members.",
-      },
-      {
-        tag: "New",
         text: "CRM Invoice Workspace: Build, edit, preview, and print branded client invoices with reusable templates, automatic numbering, and deal linking.",
-      },
-      {
-        tag: "Improved",
-        text: "Secure Checkout: Full review page with instant Razorpay activation, theme-consistent dark/light mode, and verified cancellation grace periods.",
       },
       {
         tag: "Improved",
@@ -2403,8 +2386,7 @@ export function TestAppIndicatorToggle() {
       <div>
         <div className="text-[13px] font-medium">Test app indicator</div>
         <div className="label-text mt-0.5">
-          Show or hide the TEST APP badge. Trial, expired and paid access always comes from the test database; this
-          switch never grants access.
+          Show or hide the TEST APP badge.
         </div>
       </div>
       <Button
@@ -2654,62 +2636,12 @@ function ModuleSwitch({ module, collapsed, onNavigate }: { module: ModuleKey; co
   );
 }
 
-function PlanSummary({ access }: { access: BillingAccess }) {
-  const plan = access.plan_key ?? "";
-  const trial = access.reason === "trial";
-  const unlimited = plan.startsWith("max_") || !!access.ai_import_quota?.unlimited;
-  const quota = access.ai_import_quota;
-  const remaining = quota?.remaining;
-  const limit = quota?.limit ?? (trial ? 3 : 20);
-  const resets = quota?.period_end ? new Date(quota.period_end).toLocaleDateString() : null;
-  const periodEnd = access.current_period_end ? new Date(access.current_period_end).toLocaleDateString() : null;
-  const name = trial
-    ? "Free trial"
-    : plan.startsWith("max_")
-      ? "Tracker Max"
-      : plan.startsWith("pro_")
-        ? "Tracker Pro"
-        : access.reason === "comped"
-          ? "Comped access"
-          : "Workspace plan";
-  return (
-    <div className="mx-1 mb-2 rounded-md border border-border bg-subtle/60 px-2.5 py-2">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-[12px] font-semibold">{name}</span>
-        {access.isOwner && (
-          <a
-            href="/plans"
-            target="_blank"
-            rel="noreferrer"
-            className="text-[11px] font-medium text-primary underline-offset-2 hover:underline"
-          >
-            Plans ↗
-          </a>
-        )}
-      </div>
-      {trial ? (
-        <p className="mt-1 text-[11px] text-muted-foreground">3 AI imports per trial · {remaining ?? 0} remaining</p>
-      ) : access.reason === "paid_until_period_end" ? (
-        <p className="mt-1 text-[11px] text-muted-foreground">Cancelled · access until {periodEnd ?? "period end"}</p>
-      ) : unlimited ? (
-        <p className="mt-1 text-[11px] text-muted-foreground">Unlimited AI imports · up to 3 workspaces</p>
-      ) : (
-        <p className="mt-1 text-[11px] text-muted-foreground">
-          {remaining ?? 0} of {limit} AI imports remaining{resets ? ` · resets ${resets}` : ""}
-        </p>
-      )}
-    </div>
-  );
-}
-
 function AccountMenu({
   collapsed,
   onShortcuts,
-  access,
 }: {
   collapsed: boolean;
   onShortcuts: () => void;
-  access?: BillingAccess;
 }) {
   const { profile, workspace, theme, setTheme, signOut } = useAuth();
   const navigate = useNavigate();
@@ -2807,7 +2739,6 @@ function AccountMenu({
               </span>
             </div>
           )}
-          {access?.allowed && <PlanSummary access={access} />}
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => void navigate({ to: "/settings" })}>
             <Settings className="size-4" />
@@ -2876,14 +2807,12 @@ function SidebarContent({
   onNavigate,
   onToggleCollapse,
   onShortcuts,
-  access,
 }: {
   module: ModuleKey;
   collapsed: boolean;
   onNavigate?: () => void;
   onToggleCollapse?: () => void;
   onShortcuts: () => void;
-  access?: BillingAccess;
 }) {
   const { can } = useAuth();
   const items = (module === "lead" ? LEAD_NAV : CRM_NAV).filter((i) => can(i.perm));
@@ -2950,7 +2879,7 @@ function SidebarContent({
         </nav>
       </div>
       <div className={cn("border-t border-border p-2.5", collapsed && "px-1.5")}>
-        <AccountMenu collapsed={collapsed} onShortcuts={onShortcuts} access={access} />
+        <AccountMenu collapsed={collapsed} onShortcuts={onShortcuts} />
       </div>
     </div>
   );
@@ -3040,45 +2969,6 @@ function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (
   );
 }
 
-/* ========================================================== trial banner */
-
-/** "Free trial · N days left · 1 workspace · N of 3 AI imports remaining · Explore plans" */
-export function TrialBanner({ access }: { access: BillingAccess }) {
-  if (access.reason !== "trial") return null;
-  const msLeft = access.trial_ends_at ? new Date(access.trial_ends_at).getTime() - Date.now() : 0;
-  const days = Math.max(0, Math.ceil(msLeft / 864e5));
-  const hours = Math.max(0, Math.ceil(msLeft / 36e5));
-  const left = days >= 1 && hours > 24 ? `${days} day${days === 1 ? "" : "s"}` : `${hours} hour${hours === 1 ? "" : "s"}`;
-  const quota = access.ai_import_quota;
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-subtle px-4 py-2 text-[12px] text-foreground">
-      <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
-        <span>Free trial</span>
-        <span aria-hidden>·</span>
-        <strong>{left} left</strong>
-        <span aria-hidden>·</span>
-        <span>1 workspace</span>
-        <span aria-hidden>·</span>
-        <strong>
-          {quota
-            ? `${Math.max(0, quota.remaining ?? 0)} of ${quota.limit ?? 3} AI imports remaining`
-            : "AI allowance loading"}
-        </strong>
-      </span>
-      {access.isOwner && (
-        <a
-          href="/plans"
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex h-7 items-center rounded-full border border-border bg-background px-3 text-[12px] font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-        >
-          Explore plans ↗
-        </a>
-      )}
-    </div>
-  );
-}
-
 function GoogleDisconnectedBanner() {
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-subtle px-4 py-2 text-[12px]">
@@ -3126,17 +3016,6 @@ export function AppShell({
   useRealtimeInvalidation();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-
-  const fetchAccess = useServerFn(getBillingAccess);
-  const { data: access } = useQuery({
-    queryKey: [...BILLING_ACCESS_KEY, workspace?.id],
-    queryFn: () => fetchAccess({}),
-    enabled: !!session && !!workspace,
-    staleTime: 6e4,
-  });
-  useEffect(() => {
-    if (access && !access.allowed && access.reason !== "not_member") void navigate({ to: "/billing" as never });
-  }, [access, navigate]);
 
   const fetchGoogle = useServerFn(getGoogleStatus);
   const { data: google } = useQuery({
@@ -3222,7 +3101,7 @@ export function AppShell({
     return () => window.removeEventListener("keydown", onKey);
   }, [navigate, pathname]);
 
-  if (loading || (access && !access.allowed && access.reason !== "not_member")) return <Loading page />;
+  if (loading) return <Loading page />;
   if (!session) return <Loading page label="Redirecting" />;
   if (profile && !workspace) return <NoWorkspace />;
   if (perm && profile?.is_active && !can(perm))
@@ -3253,7 +3132,6 @@ export function AppShell({
             <SidebarContent
               module={module}
               collapsed={collapsed}
-              access={access}
               onShortcuts={() => setShortcutsOpen(true)}
               onToggleCollapse={() =>
                 setCollapsed((c) => {
@@ -3283,8 +3161,7 @@ export function AppShell({
                   <SidebarContent
                     module={module}
                     collapsed={false}
-                    access={access}
-                    onNavigate={() => setMenuOpen(false)}
+                          onNavigate={() => setMenuOpen(false)}
                     onShortcuts={() => setShortcutsOpen(true)}
                   />
                 </SheetContent>
@@ -3306,27 +3183,6 @@ export function AppShell({
                 </h1>
               </nav>
               {guide && <HelpLink section={guide} label={`How ${titleText} works`} />}
-              {access?.allowed && (
-                <span
-                  title={access.reason === "trial" ? "Free trial" : (access.plan_key ?? "Workspace plan")}
-                  className={cn(
-                    "shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold",
-                    access.reason === "trial"
-                      ? "border-border text-muted-foreground"
-                      : "border-foreground text-foreground",
-                  )}
-                >
-                  {access.reason === "trial"
-                    ? "Trial"
-                    : access.plan_key?.startsWith("max_")
-                      ? "Max"
-                      : access.plan_key?.startsWith("pro_")
-                        ? "Pro"
-                        : access.reason === "comped"
-                          ? "Comped"
-                          : "Plan"}
-                </span>
-              )}
               {IS_TEST_MODE && showTestBadge && (
                 <span
                   title="Test copy, not the live app"
@@ -3377,7 +3233,6 @@ export function AppShell({
               </div>
             </header>
           )}
-          {access?.allowed && <TrialBanner access={access} />}
           {!IS_TEST_MODE && googleDown && <GoogleDisconnectedBanner />}
           <main
             data-tour="page-main"

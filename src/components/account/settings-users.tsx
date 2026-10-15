@@ -11,7 +11,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loading, Pill, fmtDateTime } from "@/components/live/kit";
-import { BILLING_ACCESS_KEY, getBillingAccess } from "@/lib/live/use-subscribe";
 import {
   ALL_PERMISSION_KEYS,
   PERMISSION_GROUPS,
@@ -79,12 +78,6 @@ type Invite = {
   revoked_at: string | null;
 };
 type PermRow = { user_id: string; permission_key: string; enabled: boolean };
-type Access = {
-  plan_key?: string | null;
-  reason?: string | null;
-  status?: string | null;
-  allowed?: boolean;
-};
 
 export function UsersSettings() {
   const { profile, workspace } = useAuth();
@@ -100,7 +93,6 @@ export function UsersSettings() {
   const [emailed, setEmailed] = useState(false);
   const sendEmail = useServerFn(sendInviteEmail);
   const revoke = useServerFn(revokeInvite);
-  const fetchAccess = useServerFn(getBillingAccess);
   const [createdToken, setCreatedToken] = useState<string | null>(null);
   const [memberPreset, setMemberPreset] = useState(CUSTOM);
 
@@ -151,11 +143,6 @@ export function UsersSettings() {
       if (error) throw error;
       return (data ?? []) as Invite[];
     },
-  });
-  const { data: access } = useQuery({
-    queryKey: [...BILLING_ACCESS_KEY, wsId],
-    enabled: !!wsId,
-    queryFn: () => fetchAccess({}) as Promise<Access>,
   });
   const { data: presets } = useQuery({
     queryKey: ["permission_presets"],
@@ -295,32 +282,8 @@ export function UsersSettings() {
   const pendingCount = (invites ?? []).filter(
     (i) => !i.accepted_at && !i.revoked_at && Date.parse(i.expires_at) > Date.now(),
   ).length;
-  const planKey = access?.plan_key ?? "";
-  const legacy =
-    access?.reason === "comped" ||
-    (access?.status === "active" && !access.plan_key) ||
-    (access?.reason === "paid_until_period_end" && !access.plan_key);
-  const seatCap = planKey.startsWith("max_")
-    ? 7
-    : planKey.startsWith("pro_")
-      ? 4
-      : legacy
-        ? null
-        : +(access?.reason === "trial");
   const used = (members ?? []).length + pendingCount;
-  const inviteDisabled =
-    !access || !access.allowed || access.reason === "trial" || seatCap === 0 || (seatCap !== null && used >= seatCap);
-  const seatText = access
-    ? access.allowed
-      ? access.reason === "trial"
-        ? "Team invitations are available on Pro and Max."
-        : seatCap !== null && used >= seatCap
-          ? "All " + seatCap + " workspace seats are used, including pending invitations."
-          : seatCap === null
-            ? "This workspace has legacy or comped access; the standard seat cap does not apply."
-            : used + " of " + seatCap + " workspace seats used, including pending invitations."
-      : "Your workspace plan is inactive. Choose a plan to invite teammates."
-    : "Checking workspace plan…";
+  const seatText = used + (used === 1 ? " member" : " members") + ", including pending invitations.";
 
   const presetOptions = (
     <SelectContent>
@@ -338,7 +301,7 @@ export function UsersSettings() {
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-[12px] text-muted-foreground">{seatText}</p>
-        <Button size="sm" disabled={inviteDisabled} onClick={() => setInviteOpen(true)}>
+        <Button size="sm" onClick={() => setInviteOpen(true)}>
           Invite by email
         </Button>
       </div>

@@ -10,14 +10,12 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/live/kit";
 import { IS_TEST_MODE } from "@/lib/live/test-mode";
 import { startGoogleSignIn } from "@/lib/live/google.functions";
-import { isPlanKey, type PlanKey } from "@/components/account/plans";
 
-type AuthSearch = { mode?: "signin"; plan?: PlanKey; google_error?: string };
+type AuthSearch = { mode?: "signin"; google_error?: string };
 
 export const Route = createFileRoute("/auth")({
   validateSearch: (s: Record<string, unknown>): AuthSearch => ({
     ...(s.mode === "signin" ? { mode: "signin" as const } : {}),
-    ...(isPlanKey(s.plan) ? { plan: s.plan } : {}),
     ...(typeof s.google_error === "string" ? { google_error: s.google_error } : {}),
   }),
   head: () => ({
@@ -65,7 +63,7 @@ function GoogleIcon() {
 
 function AuthPage() {
   const navigate = useNavigate();
-  const { mode, google_error: googleError, plan } = Route.useSearch();
+  const { mode, google_error: googleError } = Route.useSearch();
   const formMode = mode === "signin" ? "signin" : "signup";
   const isSignup = formMode === "signup";
   const { session, loading } = useAuth();
@@ -75,12 +73,12 @@ function AuthPage() {
   const [busy, setBusy] = useState(false);
 
   const afterAuth = () =>
-    navigate(plan ? { to: "/checkout", search: { plan } } : { to: "/modules" });
+    navigate({ to: "/modules" });
 
   useEffect(() => {
     if (!loading && session) void afterAuth();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, session, navigate, plan]);
+  }, [loading, session, navigate]);
 
   const signIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,7 +96,7 @@ function AuthPage() {
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth?mode=signin${plan ? `&plan=${plan}` : ""}`,
+        emailRedirectTo: `${window.location.origin}/auth?mode=signin`,
         data: { full_name: fullName },
       },
     });
@@ -121,7 +119,7 @@ function AuthPage() {
     );
     void navigate({
       to: "/auth",
-      search: { ...(mode ? { mode } : {}), ...(plan ? { plan } : {}) },
+      search: { ...(mode ? { mode } : {}) },
       replace: true,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -131,7 +129,7 @@ function AuthPage() {
     setGoogleBusy(true);
     try {
       const { url } = await googleStart({
-        data: { origin: window.location.origin, ...(plan ? { plan } : {}) },
+        data: { origin: window.location.origin },
       });
       window.location.assign(url);
     } catch {
@@ -219,7 +217,7 @@ function AuthPage() {
               Already have an account?{" "}
               <Link
                 to="/auth"
-                search={{ mode: "signin", ...(plan ? { plan } : {}) }}
+                search={{ mode: "signin" }}
                 className="font-medium text-foreground underline"
               >
                 Sign in
@@ -228,7 +226,7 @@ function AuthPage() {
           ) : (
             <>
               New here? Don't have an account?{" "}
-              <Link to="/auth" search={plan ? { plan } : {}} className="font-medium text-foreground underline">
+              <Link to="/auth" search={{}} className="font-medium text-foreground underline">
                 Sign up
               </Link>
             </>

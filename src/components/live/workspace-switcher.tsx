@@ -19,8 +19,6 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/lib/live/auth";
-import { db } from "@/lib/live/db";
-import { SUPPORT_EMAIL, supportMailto } from "@/lib/live/support";
 import {
   Dialog,
   DialogContent,
@@ -60,17 +58,16 @@ export {
   Columns3 as Columns3Icon,
 } from "lucide-react";
 
-function NewWorkspaceDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+function NewWorkspaceDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+}) {
   const { createWorkspace } = useAuth();
   const [name, setName] = useState("");
   const [creating, setCreating] = useState(false);
-  const [canCreate, setCanCreate] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    setCanCreate(null);
-    void db.rpc("can_create_workspace").then(({ data, error }) => setCanCreate(!error && data === true));
-  }, [open]);
 
   const submit = async () => {
     if (!name.trim()) return;
@@ -89,44 +86,27 @@ function NewWorkspaceDialog({ open, onOpenChange }: { open: boolean; onOpenChang
         <DialogHeader>
           <DialogTitle>New workspace</DialogTitle>
         </DialogHeader>
-        {canCreate === false ? (
-          <>
-            <p className="text-[13px] text-muted-foreground">
-              Your current plan's workspace limit has been reached. Trial and Pro include one workspace; Max
-              includes up to three. Upgrade to Max or contact support if you need more.
-            </p>
-            <DialogFooter>
-              <Button variant="ghost" onClick={() => onOpenChange(false)}>
-                Close
-              </Button>
-              <Button asChild>
-                <a href={supportMailto("Request for another Tracker workspace")}>Email {SUPPORT_EMAIL}</a>
-              </Button>
-            </DialogFooter>
-          </>
-        ) : (
-          <>
-            <p className="text-[13px] text-muted-foreground">
-              A separate space with its own leads, CRM, settings and team. It starts with the default stages and
-              channels.
-            </p>
-            <Input
-              autoFocus
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Workspace name"
-              onKeyDown={(e) => e.key === "Enter" && void submit()}
-            />
-            <DialogFooter>
-              <Button variant="ghost" onClick={() => onOpenChange(false)}>
-                Cancel
-              </Button>
-              <Button onClick={() => void submit()} disabled={creating || !name.trim() || canCreate === null}>
-                {creating ? "Creating..." : "Create"}
-              </Button>
-            </DialogFooter>
-          </>
-        )}
+        <>
+          <p className="text-[13px] text-muted-foreground">
+            A separate space with its own leads, CRM, settings and team. It starts with the default
+            stages and channels.
+          </p>
+          <Input
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Workspace name"
+            onKeyDown={(e) => e.key === "Enter" && void submit()}
+          />
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => void submit()} disabled={creating || !name.trim()}>
+              {creating ? "Creating..." : "Create"}
+            </Button>
+          </DialogFooter>
+        </>
       </DialogContent>
     </Dialog>
   );
@@ -175,7 +155,9 @@ export function WorkspaceSwitcher({ collapsed }: { collapsed?: boolean }) {
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-[220px]">
-          <DropdownMenuLabel className="text-[11px] text-muted-foreground">Workspaces</DropdownMenuLabel>
+          <DropdownMenuLabel className="text-[11px] text-muted-foreground">
+            Workspaces
+          </DropdownMenuLabel>
           {workspaces.map((w) => (
             <DropdownMenuItem
               key={w.id}

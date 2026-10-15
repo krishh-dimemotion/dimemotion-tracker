@@ -6,7 +6,7 @@ export function ContactSettings() {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <div className="text-[13px] font-medium">Questions, billing, or need another workspace?</div>
+        <div className="text-[13px] font-medium">Questions or need help?</div>
         <div className="label-text mt-0.5">Email {SUPPORT_EMAIL}. We usually reply within 1 to 2 business days.</div>
       </div>
       <Button size="sm" variant="outline" asChild>

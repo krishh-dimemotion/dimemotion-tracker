@@ -3,8 +3,6 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { Loading } from "@/components/live/kit";
 
-import { PLAN_KEYS, type PlanKey } from "@/components/account/plans";
-
 export const Route = createFileRoute("/auth_/complete")({
   head: () => ({ meta: [{ title: "Signing in | Tracker" }] }),
   component: AuthComplete,
@@ -19,7 +17,6 @@ function AuthComplete() {
     ran.current = true;
     const params = new URLSearchParams(window.location.hash.slice(1));
     const tokenHash = params.get("token_hash");
-    const plan = params.get("plan");
     window.history.replaceState(null, "", window.location.pathname);
     if (!tokenHash) {
       void navigate({ to: "/auth", search: { google_error: "failed" } });
@@ -31,8 +28,7 @@ function AuthComplete() {
         void navigate({ to: "/auth", search: { google_error: "failed" } });
         return;
       }
-      if (plan && (PLAN_KEYS as readonly string[]).includes(plan)) void navigate({ to: "/checkout", search: { plan: plan as PlanKey } });
-      else void navigate({ to: "/modules" });
+      void navigate({ to: "/modules" });
     });
   }, [navigate]);
 

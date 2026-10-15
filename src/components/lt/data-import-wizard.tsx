@@ -27,7 +27,6 @@ import { useChannels, useCountries, useSenderAccounts, useStages, useTags } from
 import { reportLovableError } from "@/lib/lovable-error-reporting";
 // Shared live ports (created in parallel by another agent).
 import { Card, Pill, downloadCsv } from "@/components/live/kit";
-import { getBillingAccess, BILLING_ACCESS_KEY } from "@/lib/live/use-subscribe";
 import { useAuth } from "@/lib/live/auth";
 import {
   FIELD_BY_KEY,
@@ -73,15 +72,9 @@ type ImportSession = {
   insertedLeadIds: string[];
   remainingQueue: QueueItem[];
   dupAction: DupAction;
-  quotaAuthorized?: boolean;
   timestamp: number;
 };
 type AnalysisError = { title: string; category: string; details: string };
-
-const QUOTA_PRO_MSG =
-  "You have exhausted your Pro plan AI import limit for this month. Upgrade to Max for unlimited AI imports or try again after your monthly allowance resets.";
-const LIMIT_TOAST = "AI import limit reached. Upgrade your plan or ask the workspace owner.";
-const CHECKING_TOAST = "Checking your workspace import allowance. Please try again shortly.";
 
 function classifyAiError(message: string) {
   const r = message.toLowerCase();
@@ -168,7 +161,7 @@ export function ImportWizard() {
     const onUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       e.returnValue =
-        "Your import is currently in progress. If you leave or refresh, your mapping progress will be lost and your AI import quota token used for this file cannot be restored.";
+        "Your import is currently in progress. If you leave or refresh, your mapping progress will be lost.";
       return e.returnValue;
     };
     window.addEventListener("beforeunload", onUnload);
@@ -206,29 +199,7 @@ export function ImportWizard() {
   const qc = useQueryClient();
   // TODO: live reads workspace from auth (index chunk g); repo useAuth may lack it.
   const { workspace } = useAuth() as unknown as { workspace?: { id: string } | null };
-  const fetchBilling = useServerFn(getBillingAccess);
-  const {
-    data: billing,
-    refetch: refetchBilling,
-    isFetching: billingFetching,
-  } = useQuery({
-    queryKey: [...BILLING_ACCESS_KEY, workspace?.id],
-    queryFn: () => fetchBilling({} as never) as Promise<any>,
-    enabled: !!workspace?.id,
-    staleTime: 0,
-  });
-  const quota = billing?.ai_import_quota;
-  const isMax = !!(billing?.plan_key?.startsWith("max_") || quota?.unlimited);
-  const isPro = !!billing?.plan_key?.startsWith("pro_");
-  const quotaExhausted = !!(quota && !quota.unlimited && typeof quota.remaining === "number" && quota.remaining <= 0);
-  const uploadDisabled = !(workspace?.id && !billingFetching && quota) || quotaExhausted;
-  const quotaLabel = isMax
-    ? "Unlimited AI imports"
-    : isPro
-      ? `${Math.max(0, quota?.remaining ?? 0)} of 20 AI imports remaining this month`
-      : (quota?.remaining ?? 0) === 3
-        ? "3 AI imports during trial"
-        : `${Math.max(0, quota?.remaining ?? 0)} AI import${(quota?.remaining ?? 0) === 1 ? "" : "s"} remaining during trial`;
+  const uploadDisabled = !workspace?.id;
 
   const { data: countries } = useCountries(false);
   const { data: stages } = useStages("lead");
@@ -246,44 +217,8 @@ export function ImportWizard() {
   });
   const signature = useMemo(() => headerSignature(headers), [headers]);
 
-  const quotaFail = (title: string, details: string) => {
-    setAnalysisError({ title, category: "quota_check_error", details });
-  };
-
   const loadFile = async (f: File | null, sheet?: string) => {
     if (!f) return;
-    const { data: b0, error: e0 } = await refetchBilling();
-    const q0 = (b0 as any)?.ai_import_quota;
-    if (e0 || !q0) {
-      quotaFail(
-        "Could not verify AI import allowance",
-        e0 instanceof Error ? e0.message : "Workspace AI import allowance could not be verified.",
-      );
-      setAnalysisOpen(true);
-      return;
-    }
-    if (!q0.unlimited && (q0.remaining ?? 0) <= 0) {
-      const pro = (b0 as any).plan_key?.startsWith("pro_");
-      const trial = (b0 as any).reason === "trial";
-      setMapping({});
-      setConfidence({});
-      setAiUsed(false);
-      setAiStats(null);
-      setResults(null);
-      setAnalysisError({
-        title: "AI import limit reached",
-        category: "quota_exhausted",
-        details: pro
-          ? QUOTA_PRO_MSG
-          : trial
-            ? "Your access to AI import is no longer available. Please upgrade your plan to get a higher limit of 20 uploads per month."
-            : (b0 as any).isOwner
-              ? "Your workspace has exhausted its AI import allowance. Upgrade your plan or wait for the allowance to reset."
-              : "This workspace has used all its AI import credits. Ask your workspace owner to upgrade the plan or wait until the allowance resets.",
-      });
-      setAnalysisOpen(true);
-      return;
-    }
     setAiUsed(false);
     setAiStats(null);
     setReadingFile(true);
@@ -301,40 +236,6 @@ export function ImportWizard() {
       setRows(sheetData.rows);
       setAiStats(null);
       setResults(null);
-      const { data: b1, error: e1 } = await refetchBilling();
-      const q1 = (b1 as any)?.ai_import_quota;
-      if (e1 || !q1) {
-        setMapping({});
-        setConfidence({});
-        setAiUsed(false);
-        setStep(1);
-        setAnalysisOpen(true);
-        quotaFail(
-          "Could not verify AI import allowance",
-          e1 instanceof Error ? e1.message : "Workspace AI import allowance could not be verified.",
-        );
-        return;
-      }
-      if (!q1.unlimited && (q1.remaining ?? 0) <= 0) {
-        const plan = (b1 as any).plan_key?.startsWith("pro_") ? "Pro" : (b1 as any).reason === "trial" ? "free trial" : "current";
-        setMapping({});
-        setConfidence({});
-        setAiUsed(false);
-        setAiStats(null);
-        setResults(null);
-        setStep(1);
-        setAnalysisOpen(true);
-        setAnalysisError({
-          title: "AI import limit reached",
-          category: "quota_exhausted",
-          details: (b1 as any).plan_key?.startsWith("pro_")
-            ? QUOTA_PRO_MSG
-            : plan === "free trial"
-              ? "You have exhausted your free plan import limits, so please upgrade your plan to get a higher import limit."
-              : "You have exhausted this workspace's AI import limit. Upgrade your plan or wait for the allowance to reset.",
-        });
-        return;
-      }
       const sig = headerSignature(sheetData.headers);
       const saved = (savedMappings.data ?? []).find((m) => m.signature === sig);
       if (saved) {
@@ -396,26 +297,6 @@ export function ImportWizard() {
         else {
           const msg = (res as { error?: string }).error || "Analysis service unavailable";
           const low = msg.toLowerCase();
-          if (low.includes("ai import limit reached") || low.includes("quota exhausted") || low.includes("import allowance exhausted")) {
-            const trial = (b1 as any).reason === "trial";
-            const pro = (b1 as any).plan_key?.startsWith("pro_");
-            setMapping({});
-            setConfidence({});
-            setAiUsed(false);
-            setAiStats(null);
-            setResults(null);
-            setStep(1);
-            setAnalysisError({
-              title: "AI import limit reached",
-              category: "quota_exhausted",
-              details: pro
-                ? QUOTA_PRO_MSG
-                : trial
-                  ? "You have exhausted your free plan import limits, so please upgrade your plan to get a higher import limit."
-                  : "You have exhausted this workspace's AI import limit. Upgrade your plan or wait for the allowance to reset.",
-            });
-            return;
-          }
           const { category, title } = classifyAiError(msg);
           setAnalysisError({ title, category, details: msg });
           reportError({ page: "/lt/data (Import Wizard)", errorTitle: title, errorMessage: msg, category: "ai_failure" });
@@ -433,7 +314,6 @@ export function ImportWizard() {
         });
       } finally {
         setAiRunning(false);
-        qc.invalidateQueries({ queryKey: [...BILLING_ACCESS_KEY, workspace?.id] });
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -455,7 +335,7 @@ export function ImportWizard() {
 
   const importGoogleSheet = async () => {
     if (uploadDisabled) {
-      toast.error(quotaExhausted ? LIMIT_TOAST : CHECKING_TOAST);
+      toast.error("Select a workspace first.");
       return;
     }
     const url = sheetUrl.trim();
@@ -979,26 +859,9 @@ export function ImportWizard() {
     return !cancelRef.current;
   };
 
-  const verifyQuotaFor = async (what: string) => {
-    const { data, error } = await refetchBilling();
-    const q = (data as any)?.ai_import_quota;
-    if (error || !q) {
-      toast.error("Could not verify this workspace’s import allowance. Refresh the page and try again.");
-      return false;
-    }
-    if (!q.unlimited && (q.remaining ?? 0) <= 0) {
-      toast.error(
-        `This workspace has used all AI import credits. Upgrade your plan or wait for the allowance to reset before ${what}.`,
-      );
-      return false;
-    }
-    return true;
-  };
-
   const resumeInterrupted = async () => {
     if (!interrupted || importing) return;
     const s = interrupted;
-    if (s.quotaAuthorized !== true && !(await verifyQuotaFor("resuming this import"))) return;
     setImporting(true);
     setCancelling(false);
     cancelRef.current = false;
@@ -1020,7 +883,6 @@ export function ImportWizard() {
               insertedLeadIds: insertedIds.current,
               remainingQueue: remaining,
               dupAction: s.dupAction,
-              quotaAuthorized: s.quotaAuthorized === true,
               timestamp: Date.now(),
             }),
           );
@@ -1039,11 +901,6 @@ export function ImportWizard() {
   };
 
   const confirmImport = async () => {
-    let authorized = aiUsed;
-    if (!aiUsed) {
-      if (!(await verifyQuotaFor("starting another import"))) return;
-      authorized = true;
-    }
     setImporting(true);
     setCancelling(false);
     cancelRef.current = false;
@@ -1094,7 +951,6 @@ export function ImportWizard() {
               insertedLeadIds: insertedIds.current,
               remainingQueue: remaining,
               dupAction,
-              quotaAuthorized: authorized,
               timestamp: Date.now(),
             }),
           );
@@ -1137,27 +993,8 @@ export function ImportWizard() {
     );
 
   const guardUpload = () => {
-    toast.error(quotaExhausted ? LIMIT_TOAST : CHECKING_TOAST);
+    toast.error("Select a workspace first.");
   };
-  const openPlans = () => {
-    window.open("/plans", "_blank", "noopener,noreferrer");
-  };
-  const remainingLine = (suffix: React.ReactNode) =>
-    billing?.ai_import_quota?.unlimited ? (
-      <span>
-        Your workspace has <strong>unlimited AI imports</strong>.
-      </span>
-    ) : billing?.ai_import_quota ? (
-      <span>
-        You currently have{" "}
-        <strong>
-          {Math.max(0, billing.ai_import_quota.remaining ?? 0)} of {billing.ai_import_quota.limit ?? (billing.reason === "trial" ? 3 : 20)} AI
-          imports remaining
-        </strong>
-        {suffix}
-      </span>
-    ) : null;
-
   return (
     <Card title={<SectionTitle section="import">Import leads</SectionTitle>}>
       {interrupted && (
@@ -1204,55 +1041,6 @@ export function ImportWizard() {
 
       {step === 1 && (
         <div className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            {quota ? (
-              <div className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-border/80 bg-subtle px-3 py-1.5 text-xs font-medium text-foreground">
-                <Sparkles className="size-3.5 shrink-0 text-primary" />
-                <span>{quotaLabel}</span>
-              </div>
-            ) : (
-              <div className="inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-subtle px-3 py-1.5 text-xs text-muted-foreground">
-                <LoaderCircle className="size-3.5 animate-spin" />
-                Checking AI import allowance...
-              </div>
-            )}
-            {quotaExhausted && billing?.isOwner && (
-              <Button size="sm" variant="outline" className="h-8" onClick={openPlans}>
-                {isPro ? "Upgrade to Max" : "Upgrade plan"}
-              </Button>
-            )}
-          </div>
-          {quotaExhausted && (
-            <div className="flex flex-col gap-3 rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-foreground">
-              <div className="flex items-start gap-3">
-                <TriangleAlert className="mt-0.5 size-5 shrink-0 text-destructive" />
-                <div className="min-w-0 space-y-1">
-                  <p className="text-sm font-semibold">{isPro ? "Monthly AI import limit reached" : "Your access to AI import is no longer available"}</p>
-                  <p className="text-[13px] leading-relaxed text-muted-foreground">
-                    {isPro
-                      ? billing?.isOwner
-                        ? QUOTA_PRO_MSG
-                        : "This workspace has used all its AI import credits. Ask your workspace owner to upgrade the plan or wait until the allowance resets."
-                      : billing?.isOwner
-                        ? "Your access to AI import is no longer available. Please upgrade your plan to get a higher limit of 20 uploads per month."
-                        : "This workspace has used all its AI import credits. Ask your workspace owner to upgrade the plan or wait until the allowance resets."}
-                  </p>
-                </div>
-              </div>
-              {billing?.isOwner && (
-                <div>
-                  <Button type="button" size="sm" onClick={openPlans}>
-                    {isPro ? "Upgrade to Max" : "Upgrade plan"}
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
-          {!billing && !billingFetching && (
-            <div className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm text-foreground">
-              We could not verify your workspace import allowance. Refresh the page before starting a new import.
-            </div>
-          )}
           <p className="label-text">
             Bring your leads in from any spreadsheet or Google Sheet. Tracker matches column names and uses up to 8 sample rows to clarify
             ambiguous fields. The AI receives those headers and sample values only, not the full sheet; the app processes the full file for
@@ -1415,7 +1203,7 @@ export function ImportWizard() {
               <p className="mt-0.5 leading-relaxed">
                 {aiUsed
                   ? "Review the suggested fields before importing. AI suggestions may need adjustments."
-                  : "Tracker matched columns using local rules. Review each field before importing; no AI import was used for this matching."}
+                  : "Tracker matched columns using local rules. Review each field before importing."}
               </p>
             </div>
           </div>
@@ -1851,10 +1639,7 @@ export function ImportWizard() {
 
       <AlertDialog
         open={confirmRestart}
-        onOpenChange={(o) => {
-          setConfirmRestart(o);
-          if (o) void refetchBilling();
-        }}
+        onOpenChange={(o) => setConfirmRestart(o)}
       >
         <AlertDialogContent className="max-w-md">
           <AlertDialogHeader>
@@ -1864,23 +1649,10 @@ export function ImportWizard() {
             </AlertDialogTitle>
             <AlertDialogDescription className="text-sm leading-relaxed">
               {aiUsed
-                ? "Hey, your import session is currently in progress. If you restart now, your current mappings will be cleared and the AI import quota token used for this file will not be restored. Would you like to continue with this import or start afresh?"
-                : "Your current file and column mappings will be cleared. Starting over does not consume an AI credit, and it will not delete leads already saved to your workspace."}
+                ? "Hey, your import session is currently in progress. If you restart now, your current mappings will be cleared. Would you like to continue with this import or start afresh?"
+                : "Your current file and column mappings will be cleared. Starting over will not delete leads already saved to your workspace."}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="rounded-md border border-border bg-subtle px-3 py-2.5 text-[13px] leading-relaxed">
-            {billingFetching ? (
-              <span className="text-muted-foreground">Checking your workspace allowance…</span>
-            ) : (
-              (remainingLine(
-                billing?.ai_import_quota?.period_end && billing?.reason !== "trial" ? (
-                  <>. Allowance resets {new Date(billing.ai_import_quota.period_end).toLocaleDateString()}.</>
-                ) : null,
-              ) ?? (
-                <span className="text-muted-foreground">Your current AI allowance could not be loaded. Refresh the page to check your plan usage.</span>
-              ))
-            )}
-          </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep working on this import</AlertDialogCancel>
             <AlertDialogAction
@@ -1905,12 +1677,9 @@ export function ImportWizard() {
             <AlertDialogDescription className="text-[13px] text-muted-foreground leading-relaxed">
               {importing
                 ? "Your leads are currently being saved to the database. Leaving now will cancel the remaining imports."
-                : "Hey, your import session is currently here on the mapping/preview stage. If you leave or restart, you will lose your mapping and current file progress, and the AI import credit used for this mapping cannot be restored."}
+                : "Hey, your import session is currently here on the mapping/preview stage. If you leave or restart, you will lose your mapping and current file progress."}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="rounded-md border border-border bg-subtle px-3 py-2.5 text-[12.5px] leading-relaxed">
-            {remainingLine(" this period.") ?? <span className="text-muted-foreground">Checking your workspace AI allowance…</span>}
-          </div>
           <AlertDialogFooter className="flex flex-col sm:flex-row gap-2">
             <AlertDialogCancel onClick={stayOnPage}>Continue with this import</AlertDialogCancel>
             <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => void leavePage()}>
@@ -1989,20 +1758,12 @@ export function ImportWizard() {
                   <p className="font-medium text-foreground">
                     {analysisError.category === "read_error"
                       ? "We couldn't read this file"
-                      : analysisError.category === "quota_exhausted"
-                        ? "Your plan's AI import limit has been reached"
-                        : analysisError.category === "quota_check_error"
-                          ? "We couldn't verify your AI import allowance"
-                          : "AI mapping is temporarily unavailable"}
+                      : "AI mapping is temporarily unavailable"}
                   </p>
                   <p className="text-[13px] leading-relaxed text-muted-foreground">
                     {analysisError.category === "read_error"
                       ? "The spreadsheet could not be read or does not contain recognized headers. Please choose a supported file."
-                      : analysisError.category === "quota_exhausted"
-                        ? analysisError.details
-                        : analysisError.category === "quota_check_error"
-                          ? "We could not confirm your current plan allowance, so mapping has been stopped. Please retry after refreshing the page."
-                          : "Your file is still available. We used local matching rules instead, so please review the suggested fields carefully. This unsuccessful AI analysis does not use an AI import."}
+                      : "Your file is still available. We used local matching rules instead, so please review the suggested fields carefully."}
                   </p>
                 </div>
               </div>
@@ -2023,7 +1784,7 @@ export function ImportWizard() {
                       Choose another file
                     </Button>
                   ) : (
-                    <div className={analysisError.category === "quota_exhausted" ? "col-span-full grid grid-cols-1 gap-2 sm:grid-cols-3" : "contents"}>
+                    <div className="contents">
                       <Button
                         type="button"
                         variant="outline"
@@ -2051,11 +1812,6 @@ export function ImportWizard() {
                       >
                         Cancel import
                       </Button>
-                      {analysisError.category === "quota_exhausted" && (
-                        <Button type="button" className="h-10 w-full rounded-lg text-sm font-medium" onClick={openPlans}>
-                          Upgrade plan
-                        </Button>
-                      )}
                     </div>
                   )}
                 </div>

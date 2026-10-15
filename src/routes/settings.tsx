@@ -1,7 +1,5 @@
 import { useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
 import {
   ArrowLeft,
   Bolt,
@@ -15,7 +13,6 @@ import {
   Globe,
   Hash,
   Keyboard,
-  KeyRound,
   LayoutGrid,
   Mail,
   MessagesSquare,
@@ -28,7 +25,6 @@ import {
   TriangleAlert,
   UserRound,
   Users,
-  Wallet,
   Workflow,
   type LucideProps,
 } from "lucide-react";
@@ -38,7 +34,6 @@ import { Input } from "@/components/ui/input";
 // Live app-shell exports AppPage (with `heading` prop), HelpLink and the test app indicator toggle.
 import { AppPage, HelpLink, TestAppIndicatorToggle } from "@/components/app-shell";
 import { IS_TEST_MODE } from "@/lib/live/test-mode";
-import { BILLING_ACCESS_KEY, getBillingAccess } from "@/lib/live/use-subscribe";
 import { GoogleConnectCard } from "@/components/live/google-connect";
 import { BookmarkletCard } from "@/components/account/bookmarklet-card";
 import { AccountSettings } from "@/components/account/settings-account";
@@ -58,7 +53,6 @@ import { PresetsSettings } from "@/components/account/settings-presets";
 import { DataSettings } from "@/components/account/settings-data";
 import { ImportMappingsSettings } from "@/components/account/settings-import-mappings";
 import { AutoBackupSettings } from "@/components/account/settings-auto-backup";
-import { BillingSettings, FreeAccessSettings } from "@/components/account/settings-billing";
 import { ContactSettings } from "@/components/account/settings-contact";
 import { DangerZoneSettings } from "@/components/account/settings-danger-zone";
 
@@ -88,14 +82,8 @@ type SectionGroup = { label: string; items: SectionItem[] };
 
 
 function SettingsPage() {
-  const { can, profile, isAdmin, workspace } = useAuth();
+  const { can, profile, isAdmin } = useAuth();
   const module = profile?.default_module === "crm" ? "crm" : "lead";
-  const fetchAccess = useServerFn(getBillingAccess);
-  const { data: access } = useQuery({
-    queryKey: [...BILLING_ACCESS_KEY, workspace?.id],
-    queryFn: () => fetchAccess({}) as Promise<{ isSuperAdmin?: boolean }>,
-    enabled: !!workspace,
-  });
   const canData = can("lead.import_export") || isAdmin;
 
   const groups: SectionGroup[] = (
@@ -297,33 +285,15 @@ function SettingsPage() {
         ],
       },
       {
-        label: "Plan",
+        label: "App",
         items: [
           {
             id: "test_mode",
             title: "Test app indicator",
             icon: Shield,
-            lede: "Show or hide the TEST APP badge. This does not change billing access.",
+            lede: "Show or hide the TEST APP badge.",
             show: IS_TEST_MODE && isAdmin,
             body: <TestAppIndicatorToggle />,
-          },
-          {
-            id: "billing",
-            title: "Billing",
-            icon: Wallet,
-            lede: "Your plan and payments.",
-            help: <HelpLink section="billing" />,
-            show: true,
-            unboxed: true,
-            body: <BillingSettings />,
-          },
-          {
-            id: "free_access",
-            title: "Free access (admin)",
-            icon: KeyRound,
-            lede: "Give a workspace free access.",
-            show: !!access?.isSuperAdmin,
-            body: <FreeAccessSettings wrap={(n) => n} />,
           },
         ],
       },
