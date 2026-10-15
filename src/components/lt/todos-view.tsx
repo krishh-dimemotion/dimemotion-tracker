@@ -18,7 +18,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useProfiles } from "@/hooks/useLookups";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/lib/live/auth";
 import { cn } from "@/lib/utils";
 import { TASK_SELECT, TaskRow, useTaskActions, type LeadTask } from "@/components/lt/tasks";
 import { LeadPicker, type PickedLead } from "@/components/lt/events";

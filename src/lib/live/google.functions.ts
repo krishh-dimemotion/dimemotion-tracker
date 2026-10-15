@@ -5,10 +5,9 @@
 //   t -> disconnectGoogle     (POST, auth)
 //   i -> startGoogleSignIn    (POST, no auth) { origin, plan? } -> { url }
 //
-// TODO(server): the live handlers run server side and are not in the client
-// bundle (OAuth with Google, token storage, Drive sheet creation). These stubs
-// keep the UI rendering: status reports "not connected", the start/disconnect
-// calls throw a clear error.
+// Google OAuth credentials are not configured on this deployment. Status
+// reports "not connected" (with the real role and any saved sheet link); the
+// connect / sign-in calls fail with a clear message.
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
@@ -24,15 +23,25 @@ export type GoogleStatus = {
 
 export const getGoogleStatus = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async (): Promise<GoogleStatus> => {
-    // TODO(server): read the workspace's Google connection + role.
+  .handler(async ({ context }): Promise<GoogleStatus> => {
+    const h = await import("./server-ctx");
+    const { sb, userId } = h.ctxOf(context);
+    let isAdmin = false;
+    let sheetUrl: string | null = null;
+    try {
+      const { workspaceId, role } = await h.currentWorkspace(sb, userId);
+      isAdmin = h.isAdminRole(role);
+      sheetUrl = (await h.readSetting<{ url?: string | null }>(sb, workspaceId, "google_sheet"))?.url ?? null;
+    } catch {
+      /* no workspace yet */
+    }
     return {
-      isAdmin: true,
+      isAdmin,
       usesConnectedGoogle: false,
       connected: false,
       legacy: false,
       googleEmail: null,
-      sheetUrl: null,
+      sheetUrl,
       lastSyncAt: null,
     };
   });
@@ -41,20 +50,17 @@ export const startGoogleConnect = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { origin: string; returnTo?: string }) => d)
   .handler(async (): Promise<{ url: string }> => {
-    // TODO(server): build the Google OAuth consent URL (Drive file scope).
-    throw new Error("Connect Google is not set up on this server yet.");
+    throw new Error("Connecting Google is not configured on this server (no Google OAuth credentials).");
   });
 
 export const disconnectGoogle = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async (): Promise<{ ok: true }> => {
-    // TODO(server): revoke and delete the stored Google tokens.
-    throw new Error("Disconnect Google is not set up on this server yet.");
+    throw new Error("No Google account is connected on this server.");
   });
 
 export const startGoogleSignIn = createServerFn({ method: "POST" })
   .inputValidator((d: { origin: string; plan?: string }) => d)
   .handler(async (): Promise<{ url: string }> => {
-    // TODO(server): Google sign-in (Supabase OAuth) start URL.
-    throw new Error("Google sign-in is not set up on this server yet.");
+    throw new Error("Google sign-in is not configured on this server. Sign up with email and password instead.");
   });

@@ -28,7 +28,7 @@ import { reportLovableError } from "@/lib/lovable-error-reporting";
 // Shared live ports (created in parallel by another agent).
 import { Card, Pill, downloadCsv } from "@/components/live/kit";
 import { getBillingAccess, BILLING_ACCESS_KEY } from "@/lib/live/use-subscribe";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/lib/live/auth";
 import {
   FIELD_BY_KEY,
   analyzeSheet,
@@ -46,19 +46,7 @@ import {
 import { ALL_SHEETS, readSpreadsheet } from "./data-read-sheet";
 import { CompanyNameSourcePicker, FieldPicker, ResultTile, SaveTemplateDialog, SmartAnalysisDialog, type WorkspaceAdditions } from "./data-dialogs";
 
-// TODO(server): live calls a createServerFn (POST, auth middleware) that downloads a public Google Sheet as CSV.
-async function fetchGoogleSheetCsv(_: { data: { url: string } }): Promise<{ csvText: string; filename?: string }> {
-  throw new Error("Google Sheet import is not wired up yet.");
-}
-// TODO(server): live calls a createServerFn (POST, auth middleware) that asks the AI to map headers using up to 8 sample rows.
-async function aiMapColumns(_: {
-  data: { headers: string[]; sampleRows: string[][] };
-}): Promise<
-  | { ok: true; countMatched: number; mappings: Record<number, string>; confidence: Record<number, Confidence>; durationMs?: number; modelUsed?: string }
-  | { ok: false; error?: string; countMatched?: number }
-> {
-  return { ok: false, error: "Analysis service unavailable" };
-}
+import { aiMapColumns, fetchGoogleSheetCsv } from "@/lib/live/import.functions";
 
 function reportError(info: { page: string; errorTitle: string; errorMessage: string; errorStack?: string; category: string }) {
   reportLovableError(new Error(info.errorMessage), info);

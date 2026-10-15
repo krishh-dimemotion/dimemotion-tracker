@@ -13,7 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useChannels } from "@/hooks/useLookups";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/lib/live/auth";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/lt/ledger")({
@@ -312,10 +312,10 @@ type LedgerEvent = {
   profiles: { full_name: string | null; email: string | null } | null;
 };
 
-// TODO: live calls a server function (deleteLeadEvent, app-shell `m`) with auth middleware.
+import { updateLeadEvent as updateLeadEventServer, deleteLeadEvent as deleteLeadEventServer } from "@/lib/live/app-shell.functions";
+
 async function deleteLeadEventFn({ data }: { data: { id: string } }) {
-  const { error } = await supabase.from("lead_events").delete().eq("id", data.id);
-  if (error) throw error;
+  await deleteLeadEventServer({ data });
 }
 
 function LedgerPage() {

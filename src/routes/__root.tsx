@@ -169,7 +169,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        {/* TODO: drop LegacyAuthProvider once no file imports useAuth from "@/lib/auth". */}
+        {/* TODO: drop LegacyAuthProvider once no file imports useAuth from "@/lib/live/auth". */}
         <LegacyAuthProvider>
           {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
           <Outlet />

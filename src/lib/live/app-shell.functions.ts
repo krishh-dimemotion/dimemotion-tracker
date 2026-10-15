@@ -5,7 +5,7 @@
 //   deleteLeadEvent   (836a52ca...)  delete an activity entry
 // The live handlers are not in the client bundle. updateLeadEvent and
 // deleteLeadEvent are reimplemented from how the client calls them (label kept
-// in meta.label, meta.edited set on edit). The two mail senders are TODO.
+// in meta.label, meta.edited set on edit). emailLeadProfile fails clearly (no mail provider); reportProblem stores into public.feedback.
 import { createServerFn } from "@tanstack/react-start";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -17,8 +17,8 @@ export const emailLeadProfile = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { leadId: string }) => d)
   .handler(async (): Promise<{ recipient: string }> => {
-    // TODO(server): render the lead profile and email it to the caller.
-    throw new Error("Emailing a lead profile is not set up on this server yet.");
+    // No mail provider is configured on this deployment.
+    throw new Error("Email is not configured on this server. Use Export > Download instead.");
   });
 
 export const reportProblem = createServerFn({ method: "POST" })
@@ -32,9 +32,31 @@ export const reportProblem = createServerFn({ method: "POST" })
       screenshot?: { name: string; type: string; base64: string };
     }) => d,
   )
-  .handler(async ({ data }) => {
-    // TODO(server): the live handler emails support (with the screenshot attached).
-    console.warn("[report-problem]", data.page, data.message.slice(0, 200));
+  .handler(async ({ data, context }) => {
+    // Stored in public.feedback (no support mailbox on this deployment).
+    const { ctxOf, currentWorkspace } = await import("./server-ctx");
+    const { sb, userId } = ctxOf(context);
+    let workspaceId: string | null = null;
+    try {
+      workspaceId = (await currentWorkspace(sb, userId)).workspaceId;
+    } catch {
+      workspaceId = null;
+    }
+    const { error } = await sb.from("feedback").insert({
+      workspace_id: workspaceId,
+      user_id: userId,
+      kind: "report",
+      message: data.message,
+      meta: {
+        page: data.page,
+        userAgent: data.userAgent,
+        videoUrl: data.videoUrl ?? null,
+        screenshot: data.screenshot
+          ? { name: data.screenshot.name, type: data.screenshot.type, base64: data.screenshot.base64.slice(0, 2_000_000) }
+          : null,
+      },
+    });
+    if (error) throw new Error(error.message);
     return { ok: true };
   });
 

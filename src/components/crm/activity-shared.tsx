@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/lib/live/auth";
 import { cn } from "@/lib/utils";
 import { useProfiles } from "@/hooks/useLookups";
 import { Button } from "@/components/ui/button";
@@ -383,24 +383,13 @@ export function ActivityTypeSelect({
   );
 }
 
-// TODO(server): live calls two server functions (update / delete a lead_events row with
-// audit + ledger side effects). Ported here as direct Supabase writes until those exist.
+import { updateLeadEvent as updateLeadEventServer, deleteLeadEvent as deleteLeadEventServer } from "@/lib/live/app-shell.functions";
+
 async function updateLeadEvent(input: { id: string; label?: string; occurredAt?: string; eventType?: string }) {
-  const { data: row } = await db.from("lead_events").select("meta").eq("id", input.id).maybeSingle();
-  const meta = { ...(row?.meta ?? {}), edited: true } as Record<string, unknown>;
-  if (input.label !== undefined) {
-    if (input.label) meta.label = input.label;
-    else delete meta.label;
-  }
-  const patch: Record<string, unknown> = { meta };
-  if (input.occurredAt) patch.occurred_at = input.occurredAt;
-  if (input.eventType) patch.event_type = input.eventType;
-  const { error } = await db.from("lead_events").update(patch).eq("id", input.id);
-  if (error) throw error;
+  await updateLeadEventServer({ data: input });
 }
 async function deleteLeadEvent(input: { id: string }) {
-  const { error } = await db.from("lead_events").delete().eq("id", input.id);
-  if (error) throw error;
+  await deleteLeadEventServer({ data: input });
 }
 
 export type ActivityEdit = { label: string; occurredAt: string; eventType: string };

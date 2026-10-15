@@ -49,7 +49,7 @@ import { useOutreachChannelsConfig } from "@/lib/live/outreach-channels";
 import { StagePill } from "@/components/leads/StagePill";
 import { useStages, useCountries, useChannels, useSenderAccounts, useTags } from "@/hooks/useLookups";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/lib/live/auth";
 import { cn } from "@/lib/utils";
 import { fmtDate } from "@/lib/format";
 import type { Lead } from "@/components/leads/types";

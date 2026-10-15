@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createServerFn, useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/live/auth";
 import { Button } from "@/components/ui/button";
@@ -17,16 +18,30 @@ import {
   type PermissionPreset,
 } from "@/components/account/settings-permissions";
 
-// TODO: live server functions (hashed handlers). Ported as stubs; real logic is server-only.
+// Invite server functions. Invite emails need a mail provider, which this
+// deployment does not have: the handler fails with a clear message and the
+// invite link (already created client side) can be copied instead.
 export const sendInviteEmail = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((d: { inviteId: string }) => d)
   .handler(async (): Promise<{ sheetShared: boolean }> => {
-    throw new Error("TODO: sendInviteEmail is not ported");
+    throw new Error("Invite emails are not configured; copy the invite link instead.");
   });
 export const revokeInvite = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((d: { inviteId: string }) => d)
-  .handler(async (): Promise<{ ok: true }> => {
-    throw new Error("TODO: revokeInvite is not ported");
+  .handler(async ({ data, context }): Promise<{ ok: true }> => {
+    const { ctxOf } = await import("@/lib/live/server-ctx");
+    const { sb } = ctxOf(context);
+    const { data: rows, error } = await sb
+      .from("workspace_invites")
+      .update({ revoked_at: new Date().toISOString() })
+      .eq("id", data.inviteId)
+      .is("accepted_at", null)
+      .select("id");
+    if (error) throw new Error(error.message);
+    if (!rows?.length) throw new Error("That invite was not found or was already used.");
+    return { ok: true };
   });
 
 const db = supabase as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any

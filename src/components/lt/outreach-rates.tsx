@@ -5,7 +5,7 @@ import { Eye, EyeOff, HelpCircle, SlidersHorizontal } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Loading } from "@/components/kit";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/lib/live/auth";
 import { useChannels } from "@/hooks/useLookups";
 import { todayISO, addDaysISO } from "@/lib/format";
 import { cn } from "@/lib/utils";

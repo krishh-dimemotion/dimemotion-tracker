@@ -2,7 +2,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/lib/live/auth";
 import { money } from "@/components/live/kit";
 
 export const normCurrency = (c: string | null | undefined) => (c ?? "USD").trim().toUpperCase() || "USD";

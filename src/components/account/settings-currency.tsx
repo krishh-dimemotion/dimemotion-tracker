@@ -11,11 +11,45 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fmtDateTime } from "@/components/live/kit";
 
-// TODO: server-only. Live handler fetches open.er-api.com/v6/latest/USD and upserts fx_rates.
+// Fetches USD-based rates from open.er-api.com (free, no key) and upserts
+// fx_rates + today's fx_rates_history. Skips the fetch when rates are < 12 h old.
 export const refreshFxRates = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async (): Promise<{ status: "fresh" | "refreshed" | "failed" }> => {
-    throw new Error("TODO: refreshFxRates server function not ported");
+  .handler(async ({ context }): Promise<{ status: "fresh" | "refreshed" | "failed" }> => {
+    const { ctxOf, adminClient } = await import("@/lib/live/server-ctx");
+    const { sb } = ctxOf(context);
+    const { data: latest } = await sb
+      .from("fx_rates")
+      .select("updated_at")
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (latest?.updated_at && Date.now() - new Date(latest.updated_at as string).getTime() < 12 * 36e5) {
+      return { status: "fresh" };
+    }
+    try {
+      const res = await fetch("https://open.er-api.com/v6/latest/USD");
+      if (!res.ok) return { status: "failed" };
+      const json = (await res.json()) as { result?: string; rates?: Record<string, number> };
+      if (json.result !== "success" || !json.rates) return { status: "failed" };
+      const now = new Date().toISOString();
+      const day = now.slice(0, 10);
+      const rates = Object.entries(json.rates).filter(([, v]) => typeof v === "number" && v > 0);
+      // fx tables are global reference data; writes go through the service role.
+      const admin = await adminClient();
+      const { error: e1 } = await admin
+        .from("fx_rates")
+        .upsert(rates.map(([currency, per_usd]) => ({ currency, per_usd, updated_at: now })), { onConflict: "currency" });
+      if (e1) throw new Error(e1.message);
+      const { error: e2 } = await admin
+        .from("fx_rates_history")
+        .upsert(rates.map(([currency, per_usd]) => ({ currency, day, per_usd })), { onConflict: "currency,day" });
+      if (e2) throw new Error(e2.message);
+      return { status: "refreshed" };
+    } catch (e) {
+      console.error("[fx] refresh failed", e);
+      return { status: "failed" };
+    }
   });
 
 const COMMON = ["USD", "INR", "EUR", "GBP", "CAD", "AUD", "AED", "SGD"];

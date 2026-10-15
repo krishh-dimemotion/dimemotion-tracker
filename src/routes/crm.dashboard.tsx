@@ -6,7 +6,7 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { AppPage } from "@/components/app-shell";
 import { Card, EmptyState, Loading, Pill, fmtDate } from "@/components/live/kit";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/lib/live/auth";
 import { useProfiles, useStages } from "@/hooks/useLookups";
 import { WithHelp } from "@/components/crm/help-link";
 import { useReportCurrency } from "@/components/crm/report-currency";

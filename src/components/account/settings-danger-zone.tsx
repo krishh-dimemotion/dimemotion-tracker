@@ -24,30 +24,183 @@ type DangerZoneInfo = {
   blockingWorkspaces: string[];
 };
 
-// TODO: server-only handlers (hashed in the live build). Stubs keep the UI wiring intact.
-export const getDangerZone = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth]).handler(async (): Promise<DangerZoneInfo> => {
-  throw new Error("TODO: getDangerZone server function not ported");
-});
-export const deleteWorkspace = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+async function loadInfo(context: unknown): Promise<DangerZoneInfo> {
+  const { ctxOf, currentWorkspace, isAdminRole, readSetting } = await import("@/lib/live/server-ctx");
+  const { sb, userId } = ctxOf(context);
+  const { workspaceId, role } = await currentWorkspace(sb, userId);
+  const { data: ws } = await sb.from("workspaces").select("id, name").eq("id", workspaceId).maybeSingle();
+  const { data: members } = await sb.from("workspace_members").select("user_id").eq("workspace_id", workspaceId);
+  const { data: mine } = await sb
+    .from("workspace_members")
+    .select("workspace_id, role, workspaces(id, name)")
+    .eq("user_id", userId)
+    .eq("role", "owner");
+  const owned = (mine ?? []).map((m) => {
+    const w = (Array.isArray(m.workspaces) ? m.workspaces[0] : m.workspaces) as { id: string; name: string } | null;
+    return { id: m.workspace_id as string, name: w?.name ?? "Workspace" };
+  });
+  const blockingWorkspaces: string[] = [];
+  for (const o of owned) {
+    const { count } = await sb
+      .from("workspace_members")
+      .select("user_id", { count: "exact", head: true })
+      .eq("workspace_id", o.id)
+      .neq("user_id", userId);
+    if ((count ?? 0) > 0) blockingWorkspaces.push(o.name);
+  }
+  const sheet = await readSetting<{ url?: string | null }>(sb, workspaceId, "google_sheet");
+  return {
+    workspace: {
+      id: workspaceId,
+      name: (ws?.name as string | undefined) ?? null,
+      isOwner: role === "owner",
+      isAdmin: isAdminRole(role),
+      isLegacy: false,
+      otherMembers: (members ?? []).filter((m) => m.user_id !== userId).length,
+    },
+    owned,
+    hasSheet: Boolean(sheet?.url),
+    accountProtected: false,
+    blockingWorkspaces,
+  };
+}
+
+/** Moves the caller to another workspace they belong to, or creates one. */
+async function moveToOtherWorkspace(context: unknown, excludeId: string): Promise<{ createdOwn: boolean }> {
+  const { ctxOf } = await import("@/lib/live/server-ctx");
+  const { sb, userId } = ctxOf(context);
+  const { data: other } = await sb
+    .from("workspace_members")
+    .select("workspace_id")
+    .eq("user_id", userId)
+    .neq("workspace_id", excludeId)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (other?.workspace_id) {
+    const { error } = await sb.rpc("switch_workspace", { _ws: other.workspace_id });
+    if (error) throw new Error(error.message);
+    return { createdOwn: false };
+  }
+  const { error } = await sb.rpc("create_workspace", { _name: "My workspace" });
+  if (error) throw new Error(error.message);
+  return { createdOwn: true };
+}
+
+async function deleteWorkspaceRows(workspaceId: string) {
+  const { adminClient, WORKSPACE_TABLES } = await import("@/lib/live/server-ctx");
+  const admin = await adminClient();
+  for (const t of WORKSPACE_TABLES) {
+    const { error } = await admin.from(t).delete().eq("workspace_id", workspaceId);
+    if (error) throw new Error(`${t}: ${error.message}`);
+  }
+  for (const t of ["user_permissions", "workspace_invites", "workspace_members"]) {
+    const { error } = await admin.from(t).delete().eq("workspace_id", workspaceId);
+    if (error) throw new Error(`${t}: ${error.message}`);
+  }
+  await admin.from("profiles").update({ current_workspace_id: null }).eq("current_workspace_id", workspaceId);
+  const { error } = await admin.from("workspaces").delete().eq("id", workspaceId);
+  if (error) throw new Error(error.message);
+}
+
+export const getDangerZone = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<DangerZoneInfo> => loadInfo(context));
+
+export const deleteWorkspace = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((d: { confirmName: string }) => d)
-  .handler(async (): Promise<{ backedUp: boolean }> => {
-    throw new Error("TODO: deleteWorkspace server function not ported");
+  .handler(async ({ data, context }): Promise<{ backedUp: boolean }> => {
+    const info = await loadInfo(context);
+    if (!info.workspace.isOwner) throw new Error("Only the workspace owner can delete it.");
+    if ((data.confirmName ?? "").trim() !== (info.workspace.name ?? "").trim())
+      throw new Error("The name you typed does not match this workspace.");
+    await moveToOtherWorkspace(context, info.workspace.id);
+    await deleteWorkspaceRows(info.workspace.id);
+    return { backedUp: false };
   });
-export const deleteAccount = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+
+export const deleteAccount = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((d: { confirm: "DELETE" }) => d)
-  .handler(async (): Promise<void> => {
-    throw new Error("TODO: deleteAccount server function not ported");
+  .handler(async ({ data, context }): Promise<void> => {
+    if (data.confirm !== "DELETE") throw new Error('Type DELETE to confirm.');
+    const { ctxOf, adminClient } = await import("@/lib/live/server-ctx");
+    const { userId } = ctxOf(context);
+    const info = await loadInfo(context);
+    if (info.blockingWorkspaces.length)
+      throw new Error(
+        `You still own workspaces with other members (${info.blockingWorkspaces.join(", ")}). Delete them or remove the members first.`,
+      );
+    for (const w of info.owned) await deleteWorkspaceRows(w.id);
+    const admin = await adminClient();
+    await admin.from("workspace_members").delete().eq("user_id", userId);
+    await admin.from("user_permissions").delete().eq("user_id", userId);
+    const { error } = await admin.auth.admin.deleteUser(userId);
+    if (error) throw new Error(error.message);
   });
-export const exportWorkspaceData = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(
-  async (): Promise<{ workspaceName: string; sheets: { label: string; rows: Record<string, unknown>[] }[] }> => {
-    throw new Error("TODO: exportWorkspaceData server function not ported");
-  },
-);
+
+const EXPORT_SHEETS: { table: string; label: string }[] = [
+  { table: "leads", label: "Leads" },
+  { table: "lead_contacts", label: "Contacts" },
+  { table: "lead_links", label: "Links" },
+  { table: "lead_followups", label: "Follow-ups" },
+  { table: "lead_tasks", label: "To-dos" },
+  { table: "lead_tags", label: "Lead tags" },
+  { table: "lead_events", label: "Activity" },
+  { table: "crm_records", label: "CRM deals" },
+  { table: "crm_contact_log", label: "CRM contact log" },
+  { table: "stages", label: "Stages" },
+  { table: "channels", label: "Channels" },
+  { table: "sender_accounts", label: "Sender accounts" },
+  { table: "countries", label: "Countries" },
+  { table: "tags", label: "Tags" },
+  { table: "outreach_targets", label: "Outreach targets" },
+  { table: "outreach_daily", label: "Outreach daily" },
+  { table: "outreach_templates", label: "Outreach templates" },
+  { table: "followup_templates", label: "Follow-up templates" },
+  { table: "import_mappings", label: "Import mappings" },
+];
+
+export const exportWorkspaceData = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  .handler(async ({ context }): Promise<{ workspaceName: string; sheets: { label: string; rows: Record<string, any>[] }[] }> => {
+    const { ctxOf, currentWorkspace } = await import("@/lib/live/server-ctx");
+    const { sb, userId } = ctxOf(context);
+    const { workspaceId } = await currentWorkspace(sb, userId);
+    const { data: ws } = await sb.from("workspaces").select("name").eq("id", workspaceId).maybeSingle();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sheets: { label: string; rows: Record<string, any>[] }[] = [];
+    for (const { table, label } of EXPORT_SHEETS) {
+      const rows: Record<string, unknown>[] = [];
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await sb.from(table).select("*").eq("workspace_id", workspaceId).range(from, from + 999);
+        if (error) throw new Error(`${label}: ${error.message}`);
+        rows.push(...((data ?? []) as Record<string, unknown>[]));
+        if (!data || data.length < 1000) break;
+      }
+      sheets.push({ label, rows });
+    }
+    return { workspaceName: (ws?.name as string | undefined) ?? "Workspace", sheets };
+  });
+
 // Same server fn the Users and access section uses (Gn in the live chunk).
-export const leaveWorkspace = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+export const leaveWorkspace = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((d: { confirm: true }) => d)
-  .handler(async (): Promise<{ createdOwn: boolean }> => {
-    throw new Error("TODO: leaveWorkspace server function not ported");
+  .handler(async ({ context }): Promise<{ createdOwn: boolean }> => {
+    const { ctxOf, currentWorkspace } = await import("@/lib/live/server-ctx");
+    const { sb, userId } = ctxOf(context);
+    const { workspaceId, role } = await currentWorkspace(sb, userId);
+    if (role === "owner") throw new Error("Owners cannot leave their own workspace. Delete it instead.");
+    const res = await moveToOtherWorkspace(context, workspaceId);
+    const { adminClient } = await import("@/lib/live/server-ctx");
+    const admin = await adminClient();
+    const { error } = await admin.from("workspace_members").delete().eq("workspace_id", workspaceId).eq("user_id", userId);
+    if (error) throw new Error(error.message);
+    await admin.from("user_permissions").delete().eq("workspace_id", workspaceId).eq("user_id", userId);
+    return res;
   });
 
 export function DangerZoneSettings() {

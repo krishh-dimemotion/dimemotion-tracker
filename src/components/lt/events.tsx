@@ -180,26 +180,14 @@ export function EventTypeSelect({
   );
 }
 
-// TODO: live calls server functions (updateLeadEvent / deleteLeadEvent, createServerFn POST with auth
-// middleware). Stubbed here with direct Supabase writes.
+import { updateLeadEvent as updateLeadEventServer, deleteLeadEvent as deleteLeadEventServer } from "@/lib/live/app-shell.functions";
+
 async function updateLeadEventFn(data: { id: string; label?: string; occurredAt?: string; eventType?: string }) {
-  const { data: row } = await supabase.from("lead_events").select("meta").eq("id", data.id).maybeSingle();
-  const meta = { ...((row?.meta as Record<string, unknown>) ?? {}), edited: true } as Record<string, unknown>;
-  if (data.label !== undefined) {
-    if (data.label) meta.label = data.label;
-    else delete meta.label;
-  }
-  const patch: Record<string, unknown> = { meta };
-  if (data.occurredAt) patch.occurred_at = data.occurredAt;
-  if (data.eventType) patch.event_type = data.eventType;
-  const { error } = await supabase.from("lead_events").update(patch as never).eq("id", data.id);
-  if (error) throw error;
+  await updateLeadEventServer({ data });
 }
 async function deleteLeadEventFn(data: { id: string }) {
-  const { error } = await supabase.from("lead_events").delete().eq("id", data.id);
-  if (error) throw error;
+  await deleteLeadEventServer({ data });
 }
-
 
 export type EventEdit = { label: string; occurredAt: string; eventType: string };
 export type EventAdd = { leadId: string; type: string; label: string; occurredAt: string };

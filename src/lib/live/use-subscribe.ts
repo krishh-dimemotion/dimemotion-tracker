@@ -10,9 +10,9 @@
 // Not exported by the chunk but used by useSubscribe: createSubscription,
 // verifySubscriptionPayment.
 //
-// TODO(server): all billing handlers are server-only (Razorpay keys, the
-// billing tables). getBillingAccess is stubbed to an open trial so the shell
-// renders the trial banner; replace it with the real entitlement query.
+// Billing (Razorpay) is not configured on this deployment. getBillingAccess
+// grants full access to everyone so nothing is gated; checkout handlers fail
+// with a clear message.
 import { useState } from "react";
 import { createServerFn, useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
@@ -50,14 +50,25 @@ export const BILLING_ACCESS_KEY = ["billing_access"] as const;
 
 export const getBillingAccess = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async (): Promise<BillingAccess> => {
-    // TODO(server): real entitlement lookup per workspace.
+  .handler(async ({ context }): Promise<BillingAccess> => {
+    // Billing is not enforced on this deployment: every member gets full access.
+    let isOwner = false;
+    try {
+      const { ctxOf, currentWorkspace } = await import("./server-ctx");
+      const { sb, userId } = ctxOf(context);
+      isOwner = (await currentWorkspace(sb, userId)).role === "owner";
+    } catch {
+      isOwner = false;
+    }
     return {
       allowed: true,
-      reason: "trial",
-      isOwner: true,
-      trial_ends_at: new Date(Date.now() + 7 * 864e5).toISOString(),
-      ai_import_quota: { remaining: 3, limit: 3 },
+      reason: "paid",
+      status: "active",
+      plan_key: "max_annual",
+      isOwner,
+      trial_ends_at: null,
+      current_period_end: null,
+      ai_import_quota: { remaining: null, limit: null, unlimited: true },
     };
   });
 
@@ -65,27 +76,27 @@ const createSubscription = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { planKey: PlanKey }) => d)
   .handler(async (): Promise<{ subscriptionId: string; keyId: string; email?: string }> => {
-    throw new Error("Checkout is not set up on this server yet.");
+    throw new Error("Payments are not configured on this server. Your workspace already has full access.");
   });
 
 const verifySubscriptionPayment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: Record<string, unknown>) => d)
   .handler(async (): Promise<{ ok: true }> => {
-    throw new Error("Payment verification is not set up on this server yet.");
+    throw new Error("Payments are not configured on this server.");
   });
 
 export const cancelSubscription = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async (): Promise<{ ok: true }> => {
-    throw new Error("Cancelling is not set up on this server yet.");
+    throw new Error("There is no paid subscription to cancel. Billing is not configured on this server.");
   });
 
 export const checkPaymentStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { subscriptionId: string }) => d)
   .handler(async (): Promise<{ status: string }> => {
-    throw new Error("Payment status is not set up on this server yet.");
+    throw new Error("Payments are not configured on this server.");
   });
 
 export const listFreeAccess = createServerFn({ method: "GET" })
@@ -96,7 +107,7 @@ export const setFreeAccess = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { email: string; free: boolean }) => d)
   .handler(async (): Promise<{ updated: string[] }> => {
-    throw new Error("Free access is not set up on this server yet.");
+    throw new Error("Everyone already has free access on this server.");
   });
 
 const PLAN_LABELS: Record<PlanKey, string> = {

@@ -17,11 +17,24 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-// TODO: server-only. Live handler deletes every lead (+ contacts, links, follow-ups, tasks,
-// lead tags, activity, CRM deals) for the workspace and clears lead rows in the Google Sheet.
+// Deletes every lead of the caller's workspace. Contacts, links, follow-ups,
+// tasks, lead tags, activity and CRM deals cascade from leads.
 export const resetLeadData = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(
-  async (): Promise<{ deletedLeads: number; sheet: { ok: boolean; message: string } }> => {
-    throw new Error("TODO: resetLeadData server function not ported");
+  async ({ context }): Promise<{ deletedLeads: number; sheet: { ok: boolean; message: string } }> => {
+    const { ctxOf, currentWorkspace, isAdminRole } = await import("@/lib/live/server-ctx");
+    const { sb, userId } = ctxOf(context);
+    const { workspaceId, role } = await currentWorkspace(sb, userId);
+    if (!isAdminRole(role)) throw new Error("Only workspace owners and admins can reset lead data.");
+    for (const t of ["crm_contact_log", "crm_records", "lead_tasks", "lead_tags", "lead_links", "lead_contacts", "lead_followups", "lead_events"]) {
+      const { error } = await sb.from(t).delete().eq("workspace_id", workspaceId);
+      if (error) throw new Error(`${t}: ${error.message}`);
+    }
+    const { data, error } = await sb.from("leads").delete().eq("workspace_id", workspaceId).select("id");
+    if (error) throw new Error(error.message);
+    return {
+      deletedLeads: data?.length ?? 0,
+      sheet: { ok: true, message: "No Google Sheet is connected, so there was nothing to clear there." },
+    };
   },
 );
 

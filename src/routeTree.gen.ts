@@ -11,24 +11,38 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as BillingRouteImport } from './routes/billing'
+import { Route as CheckoutRouteImport } from './routes/checkout'
+import { Route as ClipRouteImport } from './routes/clip'
 import { Route as ModulesRouteImport } from './routes/modules'
 import { Route as PendingRouteImport } from './routes/pending'
+import { Route as PlansRouteImport } from './routes/plans'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as WelcomeRouteImport } from './routes/welcome'
+import { Route as AuthCompleteRouteImport } from './routes/auth_.complete'
+import { Route as CrmActivityRouteImport } from './routes/crm.activity'
 import { Route as CrmDashboardRouteImport } from './routes/crm.dashboard'
 import { Route as CrmFollowupsRouteImport } from './routes/crm.followups'
+import { Route as CrmInvoicesRouteImport } from './routes/crm.invoices'
 import { Route as CrmPipelineRouteImport } from './routes/crm.pipeline'
 import { Route as CrmRevenueRouteImport } from './routes/crm.revenue'
 import { Route as CrmTodosRouteImport } from './routes/crm.todos'
+import { Route as InviteTokenRouteImport } from './routes/invite.$token'
+import { Route as LtActivityRouteImport } from './routes/lt.activity'
 import { Route as LtArchiveRouteImport } from './routes/lt.archive'
 import { Route as LtDashboardRouteImport } from './routes/lt.dashboard'
 import { Route as LtDataRouteImport } from './routes/lt.data'
 import { Route as LtFollowupsRouteImport } from './routes/lt.followups'
 import { Route as LtLedgerRouteImport } from './routes/lt.ledger'
 import { Route as LtOutreachRouteImport } from './routes/lt.outreach'
+import { Route as LtTodosRouteImport } from './routes/lt.todos'
 import { Route as CrmRecordsIndexRouteImport } from './routes/crm.records.index'
 import { Route as CrmRecordsIdRouteImport } from './routes/crm.records.$id'
 import { Route as LtLeadsIndexRouteImport } from './routes/lt.leads.index'
 import { Route as LtLeadsIdRouteImport } from './routes/lt.leads.$id'
+import { Route as LtLeadsEmailRouteImport } from './routes/lt.leads.email'
+import { Route as LtLeadsInstagramRouteImport } from './routes/lt.leads.instagram'
+import { Route as LtLeadsLinkedinRouteImport } from './routes/lt.leads.linkedin'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -38,6 +52,21 @@ const IndexRoute = IndexRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BillingRoute = BillingRouteImport.update({
+  id: '/billing',
+  path: '/billing',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CheckoutRoute = CheckoutRouteImport.update({
+  id: '/checkout',
+  path: '/checkout',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClipRoute = ClipRouteImport.update({
+  id: '/clip',
+  path: '/clip',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ModulesRoute = ModulesRouteImport.update({
@@ -50,9 +79,29 @@ const PendingRoute = PendingRouteImport.update({
   path: '/pending',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PlansRoute = PlansRouteImport.update({
+  id: '/plans',
+  path: '/plans',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WelcomeRoute = WelcomeRouteImport.update({
+  id: '/welcome',
+  path: '/welcome',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthCompleteRoute = AuthCompleteRouteImport.update({
+  id: '/auth_/complete',
+  path: '/auth/complete',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CrmActivityRoute = CrmActivityRouteImport.update({
+  id: '/crm/activity',
+  path: '/crm/activity',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CrmDashboardRoute = CrmDashboardRouteImport.update({
@@ -63,6 +112,11 @@ const CrmDashboardRoute = CrmDashboardRouteImport.update({
 const CrmFollowupsRoute = CrmFollowupsRouteImport.update({
   id: '/crm/followups',
   path: '/crm/followups',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CrmInvoicesRoute = CrmInvoicesRouteImport.update({
+  id: '/crm/invoices',
+  path: '/crm/invoices',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CrmPipelineRoute = CrmPipelineRouteImport.update({
@@ -78,6 +132,16 @@ const CrmRevenueRoute = CrmRevenueRouteImport.update({
 const CrmTodosRoute = CrmTodosRouteImport.update({
   id: '/crm/todos',
   path: '/crm/todos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InviteTokenRoute = InviteTokenRouteImport.update({
+  id: '/invite/$token',
+  path: '/invite/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LtActivityRoute = LtActivityRouteImport.update({
+  id: '/lt/activity',
+  path: '/lt/activity',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LtArchiveRoute = LtArchiveRouteImport.update({
@@ -110,6 +174,11 @@ const LtOutreachRoute = LtOutreachRouteImport.update({
   path: '/lt/outreach',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LtTodosRoute = LtTodosRouteImport.update({
+  id: '/lt/todos',
+  path: '/lt/todos',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CrmRecordsIndexRoute = CrmRecordsIndexRouteImport.update({
   id: '/crm/records/',
   path: '/crm/records/',
@@ -130,48 +199,91 @@ const LtLeadsIdRoute = LtLeadsIdRouteImport.update({
   path: '/lt/leads/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LtLeadsEmailRoute = LtLeadsEmailRouteImport.update({
+  id: '/lt/leads/email',
+  path: '/lt/leads/email',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LtLeadsInstagramRoute = LtLeadsInstagramRouteImport.update({
+  id: '/lt/leads/instagram',
+  path: '/lt/leads/instagram',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LtLeadsLinkedinRoute = LtLeadsLinkedinRouteImport.update({
+  id: '/lt/leads/linkedin',
+  path: '/lt/leads/linkedin',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/billing': typeof BillingRoute
+  '/checkout': typeof CheckoutRoute
+  '/clip': typeof ClipRoute
   '/modules': typeof ModulesRoute
   '/pending': typeof PendingRoute
+  '/plans': typeof PlansRoute
   '/settings': typeof SettingsRoute
+  '/welcome': typeof WelcomeRoute
+  '/auth/complete': typeof AuthCompleteRoute
+  '/crm/activity': typeof CrmActivityRoute
   '/crm/dashboard': typeof CrmDashboardRoute
   '/crm/followups': typeof CrmFollowupsRoute
+  '/crm/invoices': typeof CrmInvoicesRoute
   '/crm/pipeline': typeof CrmPipelineRoute
   '/crm/revenue': typeof CrmRevenueRoute
   '/crm/todos': typeof CrmTodosRoute
+  '/invite/$token': typeof InviteTokenRoute
+  '/lt/activity': typeof LtActivityRoute
   '/lt/archive': typeof LtArchiveRoute
   '/lt/dashboard': typeof LtDashboardRoute
   '/lt/data': typeof LtDataRoute
   '/lt/followups': typeof LtFollowupsRoute
   '/lt/ledger': typeof LtLedgerRoute
   '/lt/outreach': typeof LtOutreachRoute
+  '/lt/todos': typeof LtTodosRoute
   '/crm/records/$id': typeof CrmRecordsIdRoute
   '/lt/leads/$id': typeof LtLeadsIdRoute
+  '/lt/leads/email': typeof LtLeadsEmailRoute
+  '/lt/leads/instagram': typeof LtLeadsInstagramRoute
+  '/lt/leads/linkedin': typeof LtLeadsLinkedinRoute
   '/crm/records/': typeof CrmRecordsIndexRoute
   '/lt/leads/': typeof LtLeadsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/billing': typeof BillingRoute
+  '/checkout': typeof CheckoutRoute
+  '/clip': typeof ClipRoute
   '/modules': typeof ModulesRoute
   '/pending': typeof PendingRoute
+  '/plans': typeof PlansRoute
   '/settings': typeof SettingsRoute
+  '/welcome': typeof WelcomeRoute
+  '/auth/complete': typeof AuthCompleteRoute
+  '/crm/activity': typeof CrmActivityRoute
   '/crm/dashboard': typeof CrmDashboardRoute
   '/crm/followups': typeof CrmFollowupsRoute
+  '/crm/invoices': typeof CrmInvoicesRoute
   '/crm/pipeline': typeof CrmPipelineRoute
   '/crm/revenue': typeof CrmRevenueRoute
   '/crm/todos': typeof CrmTodosRoute
+  '/invite/$token': typeof InviteTokenRoute
+  '/lt/activity': typeof LtActivityRoute
   '/lt/archive': typeof LtArchiveRoute
   '/lt/dashboard': typeof LtDashboardRoute
   '/lt/data': typeof LtDataRoute
   '/lt/followups': typeof LtFollowupsRoute
   '/lt/ledger': typeof LtLedgerRoute
   '/lt/outreach': typeof LtOutreachRoute
+  '/lt/todos': typeof LtTodosRoute
   '/crm/records/$id': typeof CrmRecordsIdRoute
   '/lt/leads/$id': typeof LtLeadsIdRoute
+  '/lt/leads/email': typeof LtLeadsEmailRoute
+  '/lt/leads/instagram': typeof LtLeadsInstagramRoute
+  '/lt/leads/linkedin': typeof LtLeadsLinkedinRoute
   '/crm/records': typeof CrmRecordsIndexRoute
   '/lt/leads': typeof LtLeadsIndexRoute
 }
@@ -179,22 +291,36 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/billing': typeof BillingRoute
+  '/checkout': typeof CheckoutRoute
+  '/clip': typeof ClipRoute
   '/modules': typeof ModulesRoute
   '/pending': typeof PendingRoute
+  '/plans': typeof PlansRoute
   '/settings': typeof SettingsRoute
+  '/welcome': typeof WelcomeRoute
+  '/auth_/complete': typeof AuthCompleteRoute
+  '/crm/activity': typeof CrmActivityRoute
   '/crm/dashboard': typeof CrmDashboardRoute
   '/crm/followups': typeof CrmFollowupsRoute
+  '/crm/invoices': typeof CrmInvoicesRoute
   '/crm/pipeline': typeof CrmPipelineRoute
   '/crm/revenue': typeof CrmRevenueRoute
   '/crm/todos': typeof CrmTodosRoute
+  '/invite/$token': typeof InviteTokenRoute
+  '/lt/activity': typeof LtActivityRoute
   '/lt/archive': typeof LtArchiveRoute
   '/lt/dashboard': typeof LtDashboardRoute
   '/lt/data': typeof LtDataRoute
   '/lt/followups': typeof LtFollowupsRoute
   '/lt/ledger': typeof LtLedgerRoute
   '/lt/outreach': typeof LtOutreachRoute
+  '/lt/todos': typeof LtTodosRoute
   '/crm/records/$id': typeof CrmRecordsIdRoute
   '/lt/leads/$id': typeof LtLeadsIdRoute
+  '/lt/leads/email': typeof LtLeadsEmailRoute
+  '/lt/leads/instagram': typeof LtLeadsInstagramRoute
+  '/lt/leads/linkedin': typeof LtLeadsLinkedinRoute
   '/crm/records/': typeof CrmRecordsIndexRoute
   '/lt/leads/': typeof LtLeadsIndexRoute
 }
@@ -203,66 +329,108 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/billing'
+    | '/checkout'
+    | '/clip'
     | '/modules'
     | '/pending'
+    | '/plans'
     | '/settings'
+    | '/welcome'
+    | '/auth/complete'
+    | '/crm/activity'
     | '/crm/dashboard'
     | '/crm/followups'
+    | '/crm/invoices'
     | '/crm/pipeline'
     | '/crm/revenue'
     | '/crm/todos'
+    | '/invite/$token'
+    | '/lt/activity'
     | '/lt/archive'
     | '/lt/dashboard'
     | '/lt/data'
     | '/lt/followups'
     | '/lt/ledger'
     | '/lt/outreach'
+    | '/lt/todos'
     | '/crm/records/$id'
     | '/lt/leads/$id'
+    | '/lt/leads/email'
+    | '/lt/leads/instagram'
+    | '/lt/leads/linkedin'
     | '/crm/records/'
     | '/lt/leads/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/auth'
+    | '/billing'
+    | '/checkout'
+    | '/clip'
     | '/modules'
     | '/pending'
+    | '/plans'
     | '/settings'
+    | '/welcome'
+    | '/auth/complete'
+    | '/crm/activity'
     | '/crm/dashboard'
     | '/crm/followups'
+    | '/crm/invoices'
     | '/crm/pipeline'
     | '/crm/revenue'
     | '/crm/todos'
+    | '/invite/$token'
+    | '/lt/activity'
     | '/lt/archive'
     | '/lt/dashboard'
     | '/lt/data'
     | '/lt/followups'
     | '/lt/ledger'
     | '/lt/outreach'
+    | '/lt/todos'
     | '/crm/records/$id'
     | '/lt/leads/$id'
+    | '/lt/leads/email'
+    | '/lt/leads/instagram'
+    | '/lt/leads/linkedin'
     | '/crm/records'
     | '/lt/leads'
   id:
     | '__root__'
     | '/'
     | '/auth'
+    | '/billing'
+    | '/checkout'
+    | '/clip'
     | '/modules'
     | '/pending'
+    | '/plans'
     | '/settings'
+    | '/welcome'
+    | '/auth_/complete'
+    | '/crm/activity'
     | '/crm/dashboard'
     | '/crm/followups'
+    | '/crm/invoices'
     | '/crm/pipeline'
     | '/crm/revenue'
     | '/crm/todos'
+    | '/invite/$token'
+    | '/lt/activity'
     | '/lt/archive'
     | '/lt/dashboard'
     | '/lt/data'
     | '/lt/followups'
     | '/lt/ledger'
     | '/lt/outreach'
+    | '/lt/todos'
     | '/crm/records/$id'
     | '/lt/leads/$id'
+    | '/lt/leads/email'
+    | '/lt/leads/instagram'
+    | '/lt/leads/linkedin'
     | '/crm/records/'
     | '/lt/leads/'
   fileRoutesById: FileRoutesById
@@ -270,22 +438,36 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRoute
+  BillingRoute: typeof BillingRoute
+  CheckoutRoute: typeof CheckoutRoute
+  ClipRoute: typeof ClipRoute
   ModulesRoute: typeof ModulesRoute
   PendingRoute: typeof PendingRoute
+  PlansRoute: typeof PlansRoute
   SettingsRoute: typeof SettingsRoute
+  WelcomeRoute: typeof WelcomeRoute
+  AuthCompleteRoute: typeof AuthCompleteRoute
+  CrmActivityRoute: typeof CrmActivityRoute
   CrmDashboardRoute: typeof CrmDashboardRoute
   CrmFollowupsRoute: typeof CrmFollowupsRoute
+  CrmInvoicesRoute: typeof CrmInvoicesRoute
   CrmPipelineRoute: typeof CrmPipelineRoute
   CrmRevenueRoute: typeof CrmRevenueRoute
   CrmTodosRoute: typeof CrmTodosRoute
+  InviteTokenRoute: typeof InviteTokenRoute
+  LtActivityRoute: typeof LtActivityRoute
   LtArchiveRoute: typeof LtArchiveRoute
   LtDashboardRoute: typeof LtDashboardRoute
   LtDataRoute: typeof LtDataRoute
   LtFollowupsRoute: typeof LtFollowupsRoute
   LtLedgerRoute: typeof LtLedgerRoute
   LtOutreachRoute: typeof LtOutreachRoute
+  LtTodosRoute: typeof LtTodosRoute
   CrmRecordsIdRoute: typeof CrmRecordsIdRoute
   LtLeadsIdRoute: typeof LtLeadsIdRoute
+  LtLeadsEmailRoute: typeof LtLeadsEmailRoute
+  LtLeadsInstagramRoute: typeof LtLeadsInstagramRoute
+  LtLeadsLinkedinRoute: typeof LtLeadsLinkedinRoute
   CrmRecordsIndexRoute: typeof CrmRecordsIndexRoute
   LtLeadsIndexRoute: typeof LtLeadsIndexRoute
 }
@@ -306,6 +488,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/billing': {
+      id: '/billing'
+      path: '/billing'
+      fullPath: '/billing'
+      preLoaderRoute: typeof BillingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/checkout': {
+      id: '/checkout'
+      path: '/checkout'
+      fullPath: '/checkout'
+      preLoaderRoute: typeof CheckoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/clip': {
+      id: '/clip'
+      path: '/clip'
+      fullPath: '/clip'
+      preLoaderRoute: typeof ClipRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/modules': {
       id: '/modules'
       path: '/modules'
@@ -320,11 +523,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PendingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/plans': {
+      id: '/plans'
+      path: '/plans'
+      fullPath: '/plans'
+      preLoaderRoute: typeof PlansRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings': {
       id: '/settings'
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/welcome': {
+      id: '/welcome'
+      path: '/welcome'
+      fullPath: '/welcome'
+      preLoaderRoute: typeof WelcomeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth_/complete': {
+      id: '/auth_/complete'
+      path: '/auth/complete'
+      fullPath: '/auth/complete'
+      preLoaderRoute: typeof AuthCompleteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/crm/activity': {
+      id: '/crm/activity'
+      path: '/crm/activity'
+      fullPath: '/crm/activity'
+      preLoaderRoute: typeof CrmActivityRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/crm/dashboard': {
@@ -339,6 +570,13 @@ declare module '@tanstack/react-router' {
       path: '/crm/followups'
       fullPath: '/crm/followups'
       preLoaderRoute: typeof CrmFollowupsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/crm/invoices': {
+      id: '/crm/invoices'
+      path: '/crm/invoices'
+      fullPath: '/crm/invoices'
+      preLoaderRoute: typeof CrmInvoicesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/crm/pipeline': {
@@ -360,6 +598,20 @@ declare module '@tanstack/react-router' {
       path: '/crm/todos'
       fullPath: '/crm/todos'
       preLoaderRoute: typeof CrmTodosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/invite/$token': {
+      id: '/invite/$token'
+      path: '/invite/$token'
+      fullPath: '/invite/$token'
+      preLoaderRoute: typeof InviteTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lt/activity': {
+      id: '/lt/activity'
+      path: '/lt/activity'
+      fullPath: '/lt/activity'
+      preLoaderRoute: typeof LtActivityRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/lt/archive': {
@@ -404,6 +656,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LtOutreachRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/lt/todos': {
+      id: '/lt/todos'
+      path: '/lt/todos'
+      fullPath: '/lt/todos'
+      preLoaderRoute: typeof LtTodosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/crm/records/': {
       id: '/crm/records/'
       path: '/crm/records'
@@ -432,28 +691,63 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LtLeadsIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/lt/leads/email': {
+      id: '/lt/leads/email'
+      path: '/lt/leads/email'
+      fullPath: '/lt/leads/email'
+      preLoaderRoute: typeof LtLeadsEmailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lt/leads/instagram': {
+      id: '/lt/leads/instagram'
+      path: '/lt/leads/instagram'
+      fullPath: '/lt/leads/instagram'
+      preLoaderRoute: typeof LtLeadsInstagramRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lt/leads/linkedin': {
+      id: '/lt/leads/linkedin'
+      path: '/lt/leads/linkedin'
+      fullPath: '/lt/leads/linkedin'
+      preLoaderRoute: typeof LtLeadsLinkedinRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRoute,
+  BillingRoute: BillingRoute,
+  CheckoutRoute: CheckoutRoute,
+  ClipRoute: ClipRoute,
   ModulesRoute: ModulesRoute,
   PendingRoute: PendingRoute,
+  PlansRoute: PlansRoute,
   SettingsRoute: SettingsRoute,
+  WelcomeRoute: WelcomeRoute,
+  AuthCompleteRoute: AuthCompleteRoute,
+  CrmActivityRoute: CrmActivityRoute,
   CrmDashboardRoute: CrmDashboardRoute,
   CrmFollowupsRoute: CrmFollowupsRoute,
+  CrmInvoicesRoute: CrmInvoicesRoute,
   CrmPipelineRoute: CrmPipelineRoute,
   CrmRevenueRoute: CrmRevenueRoute,
   CrmTodosRoute: CrmTodosRoute,
+  InviteTokenRoute: InviteTokenRoute,
+  LtActivityRoute: LtActivityRoute,
   LtArchiveRoute: LtArchiveRoute,
   LtDashboardRoute: LtDashboardRoute,
   LtDataRoute: LtDataRoute,
   LtFollowupsRoute: LtFollowupsRoute,
   LtLedgerRoute: LtLedgerRoute,
   LtOutreachRoute: LtOutreachRoute,
+  LtTodosRoute: LtTodosRoute,
   CrmRecordsIdRoute: CrmRecordsIdRoute,
   LtLeadsIdRoute: LtLeadsIdRoute,
+  LtLeadsEmailRoute: LtLeadsEmailRoute,
+  LtLeadsInstagramRoute: LtLeadsInstagramRoute,
+  LtLeadsLinkedinRoute: LtLeadsLinkedinRoute,
   CrmRecordsIndexRoute: CrmRecordsIndexRoute,
   LtLeadsIndexRoute: LtLeadsIndexRoute,
 }

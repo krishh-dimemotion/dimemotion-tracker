@@ -54,7 +54,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/lib/live/auth";
 import { isTypingTarget } from "@/lib/shortcuts";
 import { useStages, useChannels, useSenderAccounts, useCountries, useTags } from "@/hooks/useLookups";
 import { StagePill } from "@/components/leads/StagePill";

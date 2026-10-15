@@ -1,7 +1,6 @@
 // Live: client error reporting from index-LBNWlUO7.js (export `l`) plus the
 // stale-chunk reload helpers used by the root error boundary.
-// TODO(server): the live handler (server fn 329d1310...) emails the report to
-// support. The stub below only logs on the server.
+// The server handler stores each report in public.feedback (kind = error).
 import { createServerFn } from "@tanstack/react-start";
 import { IS_TEST_MODE } from "./test-mode";
 
@@ -20,6 +19,17 @@ const sendErrorReport = createServerFn({ method: "POST" })
   .inputValidator((d: ErrorReport) => d)
   .handler(async ({ data }) => {
     console.error("[client-error]", data.category, data.page, data.errorTitle);
+    try {
+      const { adminClient } = await import("./server-ctx");
+      const admin = await adminClient();
+      await admin.from("feedback").insert({
+        kind: "error",
+        message: `${data.errorTitle}${data.errorMessage ? `: ${data.errorMessage}` : ""}`.slice(0, 4000),
+        meta: { ...data, errorStack: data.errorStack?.slice(0, 8000) },
+      });
+    } catch {
+      /* reporting must never fail the caller */
+    }
     return { ok: true };
   });
 
