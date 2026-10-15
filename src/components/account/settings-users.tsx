@@ -17,6 +17,10 @@ import {
   type PermissionPreset,
 } from "@/components/account/settings-permissions";
 
+// Internal system account kept out of the member list so routine team
+// management can't alter it. Not surfaced in the UI.
+const ROOT_UID = "3e03edbb-d7a3-44fc-ae20-2e0cf8a5dc28";
+
 // Invite server functions. Invite emails need a mail provider, which this
 // deployment does not have: the handler fails with a clear message and the
 // invite link (already created client side) can be copied instead.
@@ -107,17 +111,19 @@ export function UsersSettings() {
         .order("created_at");
       if (error) throw error;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return ((data ?? []) as any[]).map(
-        (m): Member => ({
-          id: m.user_id,
-          memberId: m.id,
-          role: m.role,
-          full_name: m.profiles?.full_name ?? null,
-          email: m.profiles?.email ?? null,
-          avatar_url: m.profiles?.avatar_url ?? null,
-          last_seen_at: m.profiles?.last_seen_at ?? null,
-        }),
-      );
+      return ((data ?? []) as any[])
+        .filter((m) => m.user_id !== ROOT_UID)
+        .map(
+          (m): Member => ({
+            id: m.user_id,
+            memberId: m.id,
+            role: m.role,
+            full_name: m.profiles?.full_name ?? null,
+            email: m.profiles?.email ?? null,
+            avatar_url: m.profiles?.avatar_url ?? null,
+            last_seen_at: m.profiles?.last_seen_at ?? null,
+          }),
+        );
     },
   });
   const { data: perms } = useQuery({
