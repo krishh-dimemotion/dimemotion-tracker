@@ -95,22 +95,6 @@ export const deleteLeadEvent = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-// Lead quick-peek used by the activity feed to show a lead without leaving the page.
-export const peekLead = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((d: { id: string }) => d)
-  .handler(async ({ data }) => {
-    const { adminClient } = await import("./server-ctx");
-    const admin = await adminClient();
-    const { data: lead, error } = await admin
-      .from("leads")
-      .select("*, lead_contacts(*), lead_links(*)")
-      .eq("id", data.id)
-      .maybeSingle();
-    if (error) throw new Error(error.message);
-    return lead;
-  });
-
 const METRICS_KEY = ["dm", "obs", "7b19f4e2c0"].join("_");
 
 // Lightweight metrics endpoint for the status page / uptime checks.

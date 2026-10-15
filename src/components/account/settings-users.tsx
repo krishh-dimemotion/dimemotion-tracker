@@ -47,22 +47,6 @@ export const revokeInvite = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-// Saves edits to a member's row (display name, role, permissions) from the
-// member drawer.
-export const saveMember = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((d: { memberId: string; patch: Record<string, unknown> }) => d)
-  .handler(async ({ data }): Promise<{ ok: true }> => {
-    const { adminClient } = await import("@/lib/live/server-ctx");
-    const admin = await adminClient();
-    const { error } = await admin
-      .from("workspace_members")
-      .update(data.patch)
-      .eq("id", data.memberId);
-    if (error) throw new Error(error.message);
-    return { ok: true };
-  });
-
 const db = supabase as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 const inviteUrl = (token: string) => `${window.location.origin}/invite/${token}`;
@@ -113,7 +97,6 @@ export function UsersSettings() {
   const [emailed, setEmailed] = useState(false);
   const sendEmail = useServerFn(sendInviteEmail);
   const revoke = useServerFn(revokeInvite);
-  const persistMember = useServerFn(saveMember);
   const [createdToken, setCreatedToken] = useState<string | null>(null);
   const [memberPreset, setMemberPreset] = useState(CUSTOM);
 
@@ -203,11 +186,8 @@ export function UsersSettings() {
   const setRole = async (userId: string, role: string) => {
     const m = (members ?? []).find((x) => x.id === userId);
     if (!m) return;
-    try {
-      await persistMember({ data: { memberId: m.memberId, patch: { role } } });
-    } catch (e) {
-      return window.alert(e instanceof Error ? e.message : "Couldn't update the member.");
-    }
+    const { error } = await db.from("workspace_members").update({ role }).eq("id", m.memberId);
+    if (error) return window.alert(error.message);
     reload();
   };
 
