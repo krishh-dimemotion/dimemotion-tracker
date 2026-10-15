@@ -145,7 +145,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const lastUid = useRef<string | null | undefined>(undefined);
 
   useEffect(() => {
+    // Demo deploys skip the login screen by signing into a shared demo account.
+    const demoEmail = import.meta.env.VITE_DEMO_EMAIL as string | undefined;
+    const demoPassword = import.meta.env.VITE_DEMO_PASSWORD as string | undefined;
     const { data } = supabase.auth.onAuthStateChange((_event, s) => {
+      if (!s && demoEmail && demoPassword) {
+        void supabase.auth.signInWithPassword({ email: demoEmail, password: demoPassword });
+        return;
+      }
       setSession(s);
       const uid = s?.user?.id ?? null;
       if (uid === lastUid.current) {
