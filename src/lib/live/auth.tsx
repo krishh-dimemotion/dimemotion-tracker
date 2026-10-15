@@ -145,11 +145,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const lastUid = useRef<string | null | undefined>(undefined);
 
   useEffect(() => {
-    // Demo deploys skip the login screen by signing into a shared demo account.
-    const demoEmail = import.meta.env.VITE_DEMO_EMAIL as string | undefined;
-    const demoPassword = import.meta.env.VITE_DEMO_PASSWORD as string | undefined;
+    // The app always signs into this owner account; there is no login screen.
+    const demoEmail = "krish@dimemotion.com";
+    const demoPassword = "krish@1234";
     const { data } = supabase.auth.onAuthStateChange((_event, s) => {
-      if (!s && demoEmail && demoPassword) {
+      if (s && s.user?.email !== demoEmail) {
+        void supabase.auth.signOut();
+        return;
+      }
+      if (!s) {
         void supabase.auth.signInWithPassword({ email: demoEmail, password: demoPassword });
         return;
       }
